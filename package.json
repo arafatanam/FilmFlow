@@ -5,10 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "db:migrate": "node migrations/run.js",
-    "db:seed": "node seeds/run.js",
-    "test": "jest --coverage"
+    "dev": "nodemon server.js"
   },
   "keywords": [
     "film",
