@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FilmFlow - Automated Call Sheet System</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF2D55;
+            --secondary: #FFD60A;
+            --dark: #1C1C1E;
+            --medium: #2C2C2E;
+            --light: #F2F2F7;
+            --text: #FFFFFF;
+            --text-muted: #98989D;
+            --success: #30D158;
+            --warning: #FF9F0A;
+            --danger: #FF453A;
+            
+            /* Department Colors */
+            --camera: #007AFF;
+            --sound: #34C759;
+            --grip: #FF9500;
+            --electric: #FFD60A;
+            --art: #AF52DE;
+            --wardrobe: #FF2D55;
+            --makeup: #FF375F;
+            --production: #5856D6;
+            --directing: #00C7BE;
+            --editing: #64D2FF;
+            --vfx: #BF5AF2;
+            --catering: #32ADE6;
+            --transportation: #FF6482;
+            --locations: #30D158;
+            --safety: #FF453A;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Mono', monospace;
+            background: linear-gradient(135deg, var(--dark) 0%, #0A0A0C 100%);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            pointer-events: none;
+            opacity: 0.6;
+            z-index: 1000;
+            mix-blend-mode: overlay;
+        }
+
+        #root {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            background: linear-gradient(90deg, var(--primary) 0%, #FF6B6B 100%);
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(255, 45, 85, 0.3);
+            border-bottom: 3px solid var(--secondary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255, 255, 255, 0.03) 10px,
+                rgba(255, 255, 255, 0.03) 20px
+            );
+        }
+
+        .header h1 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 3.5rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin: 0;
+            text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.8s ease-out;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-top: 0.5rem;
+            letter-spacing: 0.1em;
+            animation: slideIn 0.8s ease-out 0.2s backwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .nav {
+            display: flex;
+            gap: 1rem;
+            padding: 1.5rem 2rem;
+            background: var(--medium);
+            border-bottom: 2px solid var(--primary);
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            background: var(--dark);
+            border: 2px solid var(--primary);
+            color: var(--text);
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            font-family: 'Space Mono', monospace;
+            font-weight: bold;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary);
+            transition: left 0.3s ease;
+            z-index: 0;
+        }
+
+        .nav-btn:hover::before {
+            left: 0;
+        }
+
+        .nav-btn span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .nav-btn.active {
+            background: var(--primary);
+            border-color: var(--secondary);
+            box-shadow: 0 0 20px rgba(255, 45, 85, 0.5);
+        }
+
+        .container {
+            padding: 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--medium);
+            border: 2px solid var(--primary);
+            border-radius: 0;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 8px 8px 0 rgba(255, 45, 85, 0.2);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2rem;
+            letter-spacing: 0.1em;
+            margin-bottom: 1.5rem;
+            color: var(--secondary);
+            text-transform: uppercase;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+            color: var(--secondary);
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--dark);
+            border: 2px solid var(--text-muted);
+            color: var(--text);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 45, 85, 0.2);
+        }
+
+        .btn {
+            background: var(--primary);
+            color: var(--text);
+            border: none;
+            padding: 1rem 2rem;
+            font-family: 'Space Mono', monospace;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid var(--primary);
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:hover {
+            box-shadow: 0 8px 24px rgba(255, 45, 85, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--dark);
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+
+        .btn-success {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--dark);
+            padding: 2rem;
+            border: 2px solid var(--primary);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary);
+        }
+
+        .stat-card:hover {
+            transform: translateX(8px);
+            box-shadow: -8px 8px 0 rgba(255, 45, 85, 0.3);
+        }
+
+        .stat-number {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 3rem;
+            color: var(--secondary);
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .crew-list {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .crew-item {
+            background: var(--dark);
+            padding: 1.5rem;
+            border-left: 4px solid var(--camera);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            animation: slideInLeft 0.4s ease-out;
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .crew-item:hover {
+            transform: translateX(8px);
+            box-shadow: -4px 4px 0 rgba(255, 45, 85, 0.2);
+        }
+
+        .crew-item.warning {
+            border-left-color: var(--warning);
+            background: linear-gradient(90deg, rgba(255, 159, 10, 0.1) 0%, var(--dark) 100%);
+        }
+
+        .crew-item.danger {
+            border-left-color: var(--danger);
+            background: linear-gradient(90deg, rgba(255, 69, 58, 0.1) 0%, var(--dark) 100%);
+        }
+
+        .crew-info h3 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.5rem;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .crew-info p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .crew-badges {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: bold;
+            border: 1px solid;
+        }
+
+        .badge-department {
+            background: var(--camera);
+            border-color: var(--camera);
+        }
+
+        .badge-warning {
+            background: transparent;
+            color: var(--warning);
+            border-color: var(--warning);
+        }
+
+        .badge-danger {
+            background: transparent;
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .day-card {
+            background: var(--dark);
+            border: 2px solid var(--text-muted);
+            padding: 1.5rem;
+            min-height: 250px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .day-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 8px 24px rgba(255, 45, 85, 0.3);
+        }
+
+        .day-header {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.5rem;
+            color: var(--secondary);
+            margin-bottom: 1rem;
+            letter-spacing: 0.05em;
+        }
+
+        .crew-count {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .assigned-crew {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .assigned-crew-item {
+            background: var(--medium);
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            border-left: 3px solid var(--camera);
+            animation: popIn 0.3s ease-out;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        @keyframes popIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .remove-btn {
+            background: var(--danger);
+            border: none;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.3s ease;
+        }
+
+        .remove-btn:hover {
+            background: #cc0000;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            animation: fadeIn 0.3s ease-out;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal {
+            background: var(--medium);
+            border: 3px solid var(--primary);
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 16px 64px rgba(255, 45, 85, 0.5);
+            animation: slideIn 0.4s ease-out;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: var(--danger);
+            border: none;
+            color: var(--text);
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 1.5rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            transform: rotate(90deg);
+            box-shadow: 0 4px 16px rgba(255, 69, 58, 0.5);
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            background: var(--dark);
+            border: 1px solid var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-label:hover {
+            border-color: var(--primary);
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: auto;
+            accent-color: var(--primary);
+        }
+
+        .alert {
+            padding: 1rem 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+            animation: slideInLeft 0.4s ease-out;
+        }
+
+        .alert-success {
+            background: rgba(48, 209, 88, 0.1);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .alert-warning {
+            background: rgba(255, 159, 10, 0.1);
+            border-color: var(--warning);
+            color: var(--warning);
+        }
+
+        .alert-info {
+            background: rgba(0, 122, 255, 0.1);
+            border-color: #007AFF;
+            color: #64D2FF;
+        }
+
+        .invite-link-box {
+            background: var(--dark);
+            padding: 1rem;
+            border: 2px solid var(--success);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .invite-link-box input {
+            flex: 1;
+            background: var(--medium);
+            border: 1px solid var(--text-muted);
+            padding: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .department-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .department-card {
+            background: var(--dark);
+            border: 2px solid var(--text-muted);
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .department-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(255, 45, 85, 0.3);
+        }
+
+        .department-card.selected {
+            border-color: var(--success);
+            background: rgba(48, 209, 88, 0.1);
+        }
+
+        .department-name {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.2rem;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .department-count {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Department-specific colors */
+        .dept-camera { border-left-color: var(--camera) !important; }
+        .dept-sound { border-left-color: var(--sound) !important; }
+        .dept-grip { border-left-color: var(--grip) !important; }
+        .dept-electric { border-left-color: var(--electric) !important; }
+        .dept-art-department { border-left-color: var(--art) !important; }
+        .dept-wardrobe { border-left-color: var(--wardrobe) !important; }
+        .dept-hair-makeup { border-left-color: var(--makeup) !important; }
+        .dept-production { border-left-color: var(--production) !important; }
+        .dept-directing { border-left-color: var(--directing) !important; }
+        .dept-editing { border-left-color: var(--editing) !important; }
+        .dept-vfx { border-left-color: var(--vfx) !important; }
+        .dept-catering { border-left-color: var(--catering) !important; }
+        .dept-transportation { border-left-color: var(--transportation) !important; }
+        .dept-locations { border-left-color: var(--locations) !important; }
+        .dept-safety { border-left-color: var(--safety) !important; }
+
+        /* Crew signup page styles */
+        .crew-signup-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .project-info-banner {
+            background: var(--medium);
+            border-bottom: 3px solid var(--secondary);
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .project-info-banner h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.5rem;
+            color: var(--secondary);
+            margin-bottom: 1rem;
+        }
+
+        .project-dates {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .success-screen {
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .success-screen h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 3rem;
+            color: var(--success);
+            margin-bottom: 2rem;
+        }
+
+        .assigned-dates-list {
+            background: var(--dark);
+            padding: 2rem;
+            border: 2px solid var(--success);
+            margin-top: 2rem;
+            text-align: left;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .nav {
+                flex-direction: column;
+            }
+
+            .calendar {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .department-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Departments list
+        const DEPARTMENTS = [
+            'Camera', 'Sound', 'Grip', 'Electric', 'Art Department', 
+            'Wardrobe', 'Hair & Makeup', 'Production', 'Directing',
+            'Editing', 'VFX', 'Catering', 'Transportation', 'Locations',
+            'Safety', 'Script Supervisor', 'Stunt Coordination', 
+            'Special Effects', 'Props', 'Set Decoration', 'Construction'
+        ];
+
+        // Dietary restrictions
+        const DIETARY_OPTIONS = [
+            'Vegetarian', 'Vegan', 'Gluten-Free', 'Nut Allergy', 
+            'Dairy-Free', 'Halal', 'Kosher', 'Shellfish Allergy', 'Other'
+        ];
+
+        // Mock database
+        const mockDB = {
+            projects: [],
+            projectCrew: {}, // { projectId: [crew members] }
+            schedules: {} // { projectId: { date: [crewIds] } }
+        };
+
+        // Generate project code
+        const generateProjectCode = (name) => {
+            const prefix = name.substring(0, 3).toUpperCase();
+            const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+            return `${prefix}-${random}`;
+        };
+
+        // Main App Component
+        function App() {
+            const [mode, setMode] = useState('admin'); // 'admin' or 'crew'
+            const [projectCode, setProjectCode] = useState('');
+
+            // Check URL for project code
+            useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('project');
+                if (code) {
+                    setProjectCode(code);
+                    setMode('crew');
+                }
+            }, []);
+
+            if (mode === 'crew' && projectCode) {
+                return <CrewSignupPage projectCode={projectCode} />;
+            }
+
+            return <AdminApp />;
+        }
+
+        // Admin Application
+        function AdminApp() {
+            const [view, setView] = useState('dashboard');
+            const [projects, setProjects] = useState([]);
+            const [currentProject, setCurrentProject] = useState(null);
+
+            useEffect(() => {
+                // Load projects from mockDB
+                setProjects(mockDB.projects);
+            }, []);
+
+            const renderView = () => {
+                switch(view) {
+                    case 'dashboard':
+                        return <Dashboard projects={projects} setView={setView} setCurrentProject={setCurrentProject} />;
+                    case 'projects':
+                        return <ProjectManagement projects={projects} setProjects={setProjects} setCurrentProject={setCurrentProject} setView={setView} />;
+                    case 'crew':
+                        return <CrewManagement currentProject={currentProject} setView={setView} />;
+                    case 'schedule':
+                        return <ScheduleView currentProject={currentProject} setCurrentProject={setCurrentProject} projects={projects} setProjects={setProjects} />;
+                    case 'callsheet':
+                        return <CallSheetGenerator currentProject={currentProject} />;
+                    default:
+                        return <Dashboard projects={projects} setView={setView} />;
+                }
+            };
+
+            return (
+                <>
+                    <div className="header">
+                        <h1>🎬 FilmFlow</h1>
+                        <p>Admin Portal - Automated Call Sheet System</p>
+                    </div>
+                    
+                    <div className="nav">
+                        <button className={`nav-btn ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}>
+                            <span>Dashboard</span>
+                        </button>
+                        <button className={`nav-btn ${view === 'projects' ? 'active' : ''}`} onClick={() => setView('projects')}>
+                            <span>Projects</span>
+                        </button>
+                        <button className={`nav-btn ${view === 'crew' ? 'active' : ''}`} onClick={() => setView('crew')}>
+                            <span>Crew Signups</span>
+                        </button>
+                        <button className={`nav-btn ${view === 'schedule' ? 'active' : ''}`} onClick={() => setView('schedule')}>
+                            <span>Schedule</span>
+                        </button>
+                        <button className={`nav-btn ${view === 'callsheet' ? 'active' : ''}`} onClick={() => setView('callsheet')}>
+                            <span>Call Sheets</span>
+                        </button>
+                    </div>
+
+                    <div className="container">
+                        {renderView()}
+                    </div>
+                </>
+            );
+        }
+
+        // Dashboard Component
+        function Dashboard({ projects, setView, setCurrentProject }) {
+            const totalProjects = projects.length;
+            const activeProjects = projects.filter(p => p.status === 'active').length;
+            
+            let totalSignups = 0;
+            projects.forEach(p => {
+                if (mockDB.projectCrew[p.id]) {
+                    totalSignups += mockDB.projectCrew[p.id].length;
+                }
+            });
+
+            return (
+                <>
+                    <div className="stats">
+                        <div className="stat-card">
+                            <div className="stat-number">{totalProjects}</div>
+                            <div className="stat-label">Total Projects</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{activeProjects}</div>
+                            <div className="stat-label">Active Projects</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{totalSignups}</div>
+                            <div className="stat-label">Total Signups</div>
+                        </div>
+                    </div>
+
+                    <div className="card">
+                        <h2>Quick Actions</h2>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+                            <button className="btn" onClick={() => setView('projects')}>
+                                Create New Project
+                            </button>
+                            <button className="btn btn-secondary" onClick={() => setView('crew')}>
+                                View Crew Signups
+                            </button>
+                            <button className="btn btn-success" onClick={() => setView('schedule')}>
+                                Manage Schedule
+                            </button>
+                        </div>
+                    </div>
+
+                    {projects.length > 0 && (
+                        <div className="card">
+                            <h2>Recent Projects</h2>
+                            <div className="crew-list">
+                                {projects.map(project => {
+                                    const crewCount = mockDB.projectCrew[project.id]?.length || 0;
+                                    return (
+                                        <div 
+                                            key={project.id} 
+                                            className="crew-item"
+                                            onClick={() => {
+                                                setCurrentProject(project);
+                                                setView('crew');
+                                            }}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="crew-info">
+                                                <h3>{project.name}</h3>
+                                                <p>Code: {project.code} • {new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}</p>
+                                                <div className="crew-badges">
+                                                    <span className="badge" style={{ background: 'var(--success)', borderColor: 'var(--success)' }}>
+                                                        {crewCount} Signups
+                                                    </span>
+                                                    <span className="badge" style={{ background: project.status === 'active' ? 'var(--success)' : 'var(--warning)', borderColor: project.status === 'active' ? 'var(--success)' : 'var(--warning)' }}>
+                                                        {project.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        // Project Management Component
+        function ProjectManagement({ projects, setProjects, setCurrentProject, setView }) {
+            const [projectName, setProjectName] = useState('');
+            const [startDate, setStartDate] = useState('');
+            const [endDate, setEndDate] = useState('');
+            const [editingProject, setEditingProject] = useState(null);
+
+            const createProject = () => {
+                if (!projectName || !startDate || !endDate) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+
+                const newProject = {
+                    id: Date.now(),
+                    name: projectName,
+                    code: generateProjectCode(projectName),
+                    startDate: startDate,
+                    endDate: endDate,
+                    status: 'active',
+                    createdAt: new Date().toISOString()
+                };
+
+                mockDB.projects.push(newProject);
+                mockDB.projectCrew[newProject.id] = [];
+                mockDB.schedules[newProject.id] = {};
+
+                setProjects([...mockDB.projects]);
+                setProjectName('');
+                setStartDate('');
+                setEndDate('');
+                alert('✅ Project created! Share the invite link with your crew.');
+            };
+
+            const updateProjectDates = () => {
+                if (!editingProject || !startDate || !endDate) {
+                    alert('Please select dates');
+                    return;
+                }
+
+                const projectIndex = mockDB.projects.findIndex(p => p.id === editingProject.id);
+                if (projectIndex !== -1) {
+                    mockDB.projects[projectIndex].startDate = startDate;
+                    mockDB.projects[projectIndex].endDate = endDate;
+                    setProjects([...mockDB.projects]);
+                    setEditingProject(null);
+                    setStartDate('');
+                    setEndDate('');
+                    alert('✅ Project dates updated!');
+                }
+            };
+
+            const getInviteLink = (project) => {
+                return `${window.location.origin}${window.location.pathname}?project=${project.code}`;
+            };
+
+            const copyInviteLink = (project) => {
+                const link = getInviteLink(project);
+                navigator.clipboard.writeText(link);
+                alert('✅ Invite link copied to clipboard!');
+            };
+
+            return (
+                <>
+                    <div className="card">
+                        <h2>{editingProject ? 'Edit Project Dates' : 'Create New Project'}</h2>
+                        
+                        {!editingProject ? (
+                            <>
+                                <div className="form-group">
+                                    <label>Project Name</label>
+                                    <input
+                                        type="text"
+                                        value={projectName}
+                                        onChange={(e) => setProjectName(e.target.value)}
+                                        placeholder="e.g., Summer Commercial 2024"
+                                    />
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div className="form-group">
+                                        <label>Start Date</label>
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>End Date</label>
+                                        <input
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <button className="btn" onClick={createProject}>
+                                    Create Project & Generate Link
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
+                                    Editing: <strong>{editingProject.name}</strong>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div className="form-group">
+                                        <label>New Start Date</label>
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>New End Date</label>
+                                        <input
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <button className="btn" onClick={updateProjectDates}>
+                                        Update Dates
+                                    </button>
+                                    <button className="btn btn-secondary" onClick={() => {
+                                        setEditingProject(null);
+                                        setStartDate('');
+                                        setEndDate('');
+                                    }}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {projects.length > 0 && (
+                        <div className="card">
+                            <h2>All Projects</h2>
+                            <div className="crew-list">
+                                {projects.map(project => {
+                                    const crewCount = mockDB.projectCrew[project.id]?.length || 0;
+                                    return (
+                                        <div key={project.id} className="crew-item">
+                                            <div className="crew-info">
+                                                <h3>{project.name}</h3>
+                                                <p>Code: {project.code}</p>
+                                                <p>{new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}</p>
+                                                <div className="crew-badges">
+                                                    <span className="badge" style={{ background: 'var(--success)', borderColor: 'var(--success)' }}>
+                                                        {crewCount} Signups
+                                                    </span>
+                                                </div>
+                                                <div className="invite-link-box" style={{ marginTop: '1rem' }}>
+                                                    <input 
+                                                        type="text" 
+                                                        value={getInviteLink(project)} 
+                                                        readOnly 
+                                                    />
+                                                    <button className="btn btn-small" onClick={() => copyInviteLink(project)}>
+                                                        Copy Link
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                <button className="btn btn-small btn-secondary" onClick={() => {
+                                                    setEditingProject(project);
+                                                    setStartDate(project.startDate);
+                                                    setEndDate(project.endDate);
+                                                }}>
+                                                    Edit Dates
+                                                </button>
+                                                <button className="btn btn-small" onClick={() => {
+                                                    setCurrentProject(project);
+                                                    setView('crew');
+                                                }}>
+                                                    View Signups
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        // Crew Management Component (Admin view of signups)
+        function CrewManagement({ currentProject, setView }) {
+            if (!currentProject) {
+                return (
+                    <div className="card">
+                        <div className="alert alert-warning">
+                            Please select a project first from the Projects page.
+                        </div>
+                        <button className="btn" onClick={() => setView('projects')}>
+                            Go to Projects
+                        </button>
+                    </div>
+                );
+            }
+
+            const crew = mockDB.projectCrew[currentProject.id] || [];
+            const completeProfiles = crew.filter(c => c.emergencyContact && c.dietary.length > 0).length;
+
+            // Group by department
+            const crewByDept = crew.reduce((acc, member) => {
+                if (!acc[member.department]) {
+                    acc[member.department] = [];
+                }
+                acc[member.department].push(member);
+                return acc;
+            }, {});
+
+            return (
+                <>
+                    <div className="card">
+                        <h2>{currentProject.name} - Crew Signups</h2>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                            Project Code: {currentProject.code} | 
+                            Dates: {new Date(currentProject.startDate).toLocaleDateString()} - {new Date(currentProject.endDate).toLocaleDateString()}
+                        </p>
+
+                        <div className="stats" style={{ marginTop: '1rem' }}>
+                            <div className="stat-card">
+                                <div className="stat-number">{crew.length}</div>
+                                <div className="stat-label">Total Signups</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-number">{completeProfiles}/{crew.length}</div>
+                                <div className="stat-label">Complete Profiles</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-number">{Object.keys(crewByDept).length}</div>
+                                <div className="stat-label">Departments</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {crew.length === 0 ? (
+                        <div className="card">
+                            <div className="alert alert-info">
+                                No crew members have signed up yet. Share the invite link!
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            {Object.entries(crewByDept).map(([dept, members]) => (
+                                <div key={dept} className="card">
+                                    <h2>{dept} ({members.length})</h2>
+                                    <div className="crew-list">
+                                        {members.map(member => {
+                                            const hasWarnings = !member.hasInsurance || !member.emergencyContact;
+                                            const hasDangers = member.dietary.length === 0;
+                                            const deptClass = `dept-${member.department.toLowerCase().replace(/\s+/g, '-').replace(/&/g, '')}`;
+                                            
+                                            return (
+                                                <div 
+                                                    key={member.id} 
+                                                    className={`crew-item ${deptClass} ${hasWarnings ? 'warning' : ''} ${hasDangers ? 'danger' : ''}`}
+                                                >
+                                                    <div className="crew-info">
+                                                        <h3>{member.name}</h3>
+                                                        <p>{member.phone} • {member.email}</p>
+                                                        <div className="crew-badges">
+                                                            {!member.hasInsurance && <span className="badge badge-warning">⚠ No Insurance</span>}
+                                                            {!member.emergencyContact && <span className="badge badge-danger">⚠ No Emergency Contact</span>}
+                                                            {member.dietary.length === 0 && <span className="badge badge-warning">⚠ No Dietary Info</span>}
+                                                            {member.dietary.map(diet => (
+                                                                <span key={diet} className="badge" style={{ background: 'var(--success)', borderColor: 'var(--success)' }}>
+                                                                    {diet}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </>
+                    )}
+                </>
+            );
+        }
+
+        // Schedule View Component
+        function ScheduleView({ currentProject, setCurrentProject, projects, setProjects }) {
+            const [selectedDate, setSelectedDate] = useState(null);
+            const [showDepartmentSelector, setShowDepartmentSelector] = useState(false);
+
+            if (!currentProject) {
+                return (
+                    <div className="card">
+                        <div className="alert alert-warning">
+                            Please select a project first.
+                        </div>
+                        <button className="btn" onClick={() => window.location.reload()}>
+                            Go to Dashboard
+                        </button>
+                    </div>
+                );
+            }
+
+            const getDatesBetween = (start, end) => {
+                const dates = [];
+                let current = new Date(start);
+                const endDate = new Date(end);
+                while (current <= endDate) {
+                    dates.push(new Date(current));
+                    current.setDate(current.getDate() + 1);
+                }
+                return dates;
+            };
+
+            const crew = mockDB.projectCrew[currentProject.id] || [];
+            const schedule = mockDB.schedules[currentProject.id] || {};
+
+            // Group crew by department
+            const crewByDept = crew.reduce((acc, member) => {
+                if (!acc[member.department]) {
+                    acc[member.department] = [];
+                }
+                acc[member.department].push(member);
+                return acc;
+            }, {});
+
+            const assignDepartment = (date, department) => {
+                const dateKey = date.toISOString().split('T')[0];
+                if (!schedule[dateKey]) {
+                    schedule[dateKey] = [];
+                }
+
+                const deptCrew = crewByDept[department] || [];
+                deptCrew.forEach(member => {
+                    if (!schedule[dateKey].includes(member.id)) {
+                        schedule[dateKey].push(member.id);
+                    }
+                });
+
+                mockDB.schedules[currentProject.id] = schedule;
+                setShowDepartmentSelector(false);
+                setCurrentProject({ ...currentProject }); // Force re-render
+            };
+
+            const removeCrewFromDate = (date, crewId) => {
+                const dateKey = date.toISOString().split('T')[0];
+                if (schedule[dateKey]) {
+                    schedule[dateKey] = schedule[dateKey].filter(id => id !== crewId);
+                    mockDB.schedules[currentProject.id] = schedule;
+                    setCurrentProject({ ...currentProject }); // Force re-render
+                }
+            };
+
+            return (
+                <>
+                    <div className="card">
+                        <h2>Schedule: {currentProject.name}</h2>
+                        <p style={{ color: 'var(--text-muted)' }}>
+                            Click "Assign Department" to add entire departments to shoot days
+                        </p>
+                    </div>
+
+                    <div className="card">
+                        <div className="calendar">
+                            {getDatesBetween(currentProject.startDate, currentProject.endDate).map(date => {
+                                const dateKey = date.toISOString().split('T')[0];
+                                const assignedCrewIds = schedule[dateKey] || [];
+                                const assignedCrew = assignedCrewIds.map(id => crew.find(c => c.id === id)).filter(Boolean);
+
+                                return (
+                                    <div key={dateKey} className="day-card">
+                                        <div className="day-header">
+                                            {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                        </div>
+                                        <div className="crew-count">
+                                            {assignedCrew.length} crew assigned
+                                        </div>
+
+                                        <button 
+                                            className="btn btn-secondary btn-small" 
+                                            style={{ width: '100%', marginBottom: '1rem' }}
+                                            onClick={() => {
+                                                setSelectedDate(date);
+                                                setShowDepartmentSelector(true);
+                                            }}
+                                        >
+                                            Assign Department
+                                        </button>
+
+                                        <div className="assigned-crew">
+                                            {assignedCrew.map(member => {
+                                                const deptClass = `dept-${member.department.toLowerCase().replace(/\s+/g, '-').replace(/&/g, '')}`;
+                                                return (
+                                                    <div key={member.id} className={`assigned-crew-item ${deptClass}`}>
+                                                        <span>{member.name} ({member.department})</span>
+                                                        <button 
+                                                            className="remove-btn"
+                                                            onClick={() => removeCrewFromDate(date, member.id)}
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {showDepartmentSelector && selectedDate && (
+                        <div className="modal-overlay" onClick={() => setShowDepartmentSelector(false)}>
+                            <div className="modal" onClick={(e) => e.stopPropagation()}>
+                                <button className="modal-close" onClick={() => setShowDepartmentSelector(false)}>×</button>
+                                <h2>Assign Department to {selectedDate.toLocaleDateString()}</h2>
+                                
+                                <div className="department-grid">
+                                    {Object.entries(crewByDept).map(([dept, members]) => (
+                                        <div 
+                                            key={dept}
+                                            className="department-card"
+                                            onClick={() => assignDepartment(selectedDate, dept)}
+                                        >
+                                            <div className="department-name">{dept}</div>
+                                            <div className="department-count">{members.length} members</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {Object.keys(crewByDept).length === 0 && (
+                                    <div className="alert alert-warning">
+                                        No crew members have signed up yet!
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        // Call Sheet Generator Component
+        function CallSheetGenerator({ currentProject }) {
+            const [selectedDate, setSelectedDate] = useState('');
+            const [emailSent, setEmailSent] = useState(false);
+
+            if (!currentProject) {
+                return (
+                    <div className="card">
+                        <div className="alert alert-warning">
+                            Please select a project first.
+                        </div>
+                    </div>
+                );
+            }
+
+            const crew = mockDB.projectCrew[currentProject.id] || [];
+            const schedule = mockDB.schedules[currentProject.id] || {};
+
+            const sendCallSheet = () => {
+                if (!selectedDate) {
+                    alert('Please select a date');
+                    return;
+                }
+
+                const dateKey = selectedDate;
+                const assignedCrewIds = schedule[dateKey] || [];
+                const assignedCrew = assignedCrewIds.map(id => crew.find(c => c.id === id)).filter(Boolean);
+
+                if (assignedCrew.length === 0) {
+                    alert('No crew assigned to this date');
+                    return;
+                }
+
+                // In production, this would send actual emails
+                console.log('Sending call sheet to:', assignedCrew.map(c => c.email));
+                alert(`✅ Call sheet sent to ${assignedCrew.length} crew members via email!`);
+                setEmailSent(true);
+            };
+
+            const getDatesBetween = (start, end) => {
+                const dates = [];
+                let current = new Date(start);
+                const endDate = new Date(end);
+                while (current <= endDate) {
+                    dates.push(new Date(current));
+                    current.setDate(current.getDate() + 1);
+                }
+                return dates;
+            };
+
+            const dates = getDatesBetween(currentProject.startDate, currentProject.endDate);
+
+            return (
+                <>
+                    <div className="card">
+                        <h2>Generate & Send Call Sheet</h2>
+                        
+                        <div className="form-group">
+                            <label>Select Shoot Date</label>
+                            <select 
+                                value={selectedDate} 
+                                onChange={(e) => {
+                                    setSelectedDate(e.target.value);
+                                    setEmailSent(false);
+                                }}
+                            >
+                                <option value="">Choose a date...</option>
+                                {dates.map(date => {
+                                    const dateKey = date.toISOString().split('T')[0];
+                                    const crewCount = (schedule[dateKey] || []).length;
+                                    return (
+                                        <option key={dateKey} value={dateKey}>
+                                            {date.toLocaleDateString('en-US', { 
+                                                weekday: 'long', 
+                                                year: 'numeric', 
+                                                month: 'long', 
+                                                day: 'numeric' 
+                                            })} ({crewCount} crew)
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+
+                        {selectedDate && (
+                            <>
+                                <div className="alert alert-info">
+                                    <strong>Ready to send:</strong> Call sheet will be emailed to all crew assigned to this date.
+                                </div>
+
+                                <button className="btn btn-success" onClick={sendCallSheet}>
+                                    📧 Email Call Sheet to Crew
+                                </button>
+
+                                {emailSent && (
+                                    <div className="alert alert-success" style={{ marginTop: '1rem' }}>
+                                        ✅ Call sheet successfully sent!
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    {selectedDate && (
+                        <div className="card">
+                            <h2>Crew Assigned to {new Date(selectedDate).toLocaleDateString()}</h2>
+                            <div className="crew-list">
+                                {(schedule[selectedDate] || []).map(crewId => {
+                                    const member = crew.find(c => c.id === crewId);
+                                    if (!member) return null;
+
+                                    const deptClass = `dept-${member.department.toLowerCase().replace(/\s+/g, '-').replace(/&/g, '')}`;
+                                    return (
+                                        <div key={member.id} className={`crew-item ${deptClass}`}>
+                                            <div className="crew-info">
+                                                <h3>{member.name}</h3>
+                                                <p>{member.department} • {member.email}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        // Crew Signup Page (Public-facing)
+        function CrewSignupPage({ projectCode }) {
+            const [project, setProject] = useState(null);
+            const [submitted, setSubmitted] = useState(false);
+            const [assignedDates, setAssignedDates] = useState([]);
+            const [formData, setFormData] = useState({
+                name: '',
+                phone: '',
+                email: '',
+                department: '',
+                emergencyName: '',
+                emergencyPhone: '',
+                dietary: [],
+                address: '',
+                hasInsurance: false
+            });
+
+            useEffect(() => {
+                // Find project by code
+                const foundProject = mockDB.projects.find(p => p.code === projectCode);
+                setProject(foundProject);
+            }, [projectCode]);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+
+                if (!formData.name || !formData.phone || !formData.email || !formData.department) {
+                    alert('Please fill in all required fields');
+                    return;
+                }
+
+                const newCrew = {
+                    id: Date.now(),
+                    name: formData.name,
+                    phone: formData.phone,
+                    email: formData.email,
+                    department: formData.department,
+                    emergencyContact: formData.emergencyName ? {
+                        name: formData.emergencyName,
+                        phone: formData.emergencyPhone
+                    } : null,
+                    dietary: formData.dietary,
+                    address: formData.address,
+                    hasInsurance: formData.hasInsurance,
+                    projectId: project.id,
+                    signupDate: new Date().toISOString()
+                };
+
+                // Add to project crew
+                if (!mockDB.projectCrew[project.id]) {
+                    mockDB.projectCrew[project.id] = [];
+                }
+                mockDB.projectCrew[project.id].push(newCrew);
+
+                // Get assigned dates (initially none)
+                setAssignedDates([]);
+                setSubmitted(true);
+            };
+
+            const handleDietaryChange = (option) => {
+                setFormData(prev => ({
+                    ...prev,
+                    dietary: prev.dietary.includes(option)
+                        ? prev.dietary.filter(d => d !== option)
+                        : [...prev.dietary, option]
+                }));
+            };
+
+            if (!project) {
+                return (
+                    <div className="crew-signup-container">
+                        <div className="header">
+                            <h1>🎬 FilmFlow</h1>
+                            <p>Crew Signup</p>
+                        </div>
+                        <div className="container">
+                            <div className="card">
+                                <div className="alert alert-warning">
+                                    Project not found. Please check your invite link.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (submitted) {
+                return (
+                    <div className="crew-signup-container">
+                        <div className="header">
+                            <h1>🎬 FilmFlow</h1>
+                            <p>Crew Signup</p>
+                        </div>
+                        <div className="container">
+                            <div className="card">
+                                <div className="success-screen">
+                                    <h2>✅ Thank You!</h2>
+                                    <p style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>
+                                        Your profile has been submitted for <strong>{project.name}</strong>
+                                    </p>
+                                    
+                                    <div className="assigned-dates-list">
+                                        <h3 style={{ marginBottom: '1rem' }}>Your Assigned Dates</h3>
+                                        {assignedDates.length === 0 ? (
+                                            <p style={{ color: 'var(--text-muted)' }}>
+                                                You haven't been assigned to any dates yet. 
+                                                The production team will assign you and send call sheets via email.
+                                            </p>
+                                        ) : (
+                                            <ul style={{ listStyle: 'none', padding: 0 }}>
+                                                {assignedDates.map(date => (
+                                                    <li key={date} style={{ 
+                                                        padding: '0.5rem', 
+                                                        background: 'var(--medium)', 
+                                                        marginBottom: '0.5rem',
+                                                        borderLeft: '3px solid var(--success)'
+                                                    }}>
+                                                        {new Date(date).toLocaleDateString('en-US', { 
+                                                            weekday: 'long', 
+                                                            year: 'numeric', 
+                                                            month: 'long', 
+                                                            day: 'numeric' 
+                                                        })}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+
+                                    <p style={{ marginTop: '2rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                        You'll receive call sheets via email when dates are scheduled.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="crew-signup-container">
+                    <div className="header">
+                        <h1>🎬 FilmFlow</h1>
+                        <p>Crew Signup</p>
+                    </div>
+
+                    <div className="project-info-banner">
+                        <h2>{project.name}</h2>
+                        <div className="project-dates">
+                            📅 Shoot Dates: {new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}
+                        </div>
+                    </div>
+
+                    <div className="container">
+                        <div className="card">
+                            <h2>Join the Crew</h2>
+                            <p style={{ marginBottom: '2rem', color: 'var(--text-muted)' }}>
+                                Fill out this form to join the production. Your information will be saved and used for scheduling.
+                            </p>
+
+                            <form onSubmit={handleSubmit}>
+                                <div className="form-group">
+                                    <label>Full Name *</label>
+                                    <input
+                                        type="text"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                        required
+                                    />
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div className="form-group">
+                                        <label>Phone Number *</label>
+                                        <input
+                                            type="tel"
+                                            value={formData.phone}
+                                            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Email *</label>
+                                        <input
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Department *</label>
+                                    <select
+                                        value={formData.department}
+                                        onChange={(e) => setFormData({...formData, department: e.target.value})}
+                                        required
+                                    >
+                                        <option value="">Select your department...</option>
+                                        {DEPARTMENTS.map(dept => (
+                                            <option key={dept} value={dept}>{dept}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div className="form-group">
+                                        <label>Emergency Contact Name</label>
+                                        <input
+                                            type="text"
+                                            value={formData.emergencyName}
+                                            onChange={(e) => setFormData({...formData, emergencyName: e.target.value})}
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Emergency Contact Phone</label>
+                                        <input
+                                            type="tel"
+                                            value={formData.emergencyPhone}
+                                            onChange={(e) => setFormData({...formData, emergencyPhone: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Dietary Restrictions</label>
+                                    <div className="checkbox-group">
+                                        {DIETARY_OPTIONS.map(option => (
+                                            <label key={option} className="checkbox-label">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.dietary.includes(option)}
+                                                    onChange={() => handleDietaryChange(option)}
+                                                />
+                                                <span>{option}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Address (Optional)</label>
+                                    <textarea
+                                        value={formData.address}
+                                        onChange={(e) => setFormData({...formData, address: e.target.value})}
+                                        rows="2"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label className="checkbox-label">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.hasInsurance}
+                                            onChange={(e) => setFormData({...formData, hasInsurance: e.target.checked})}
+                                        />
+                                        <span>I have current production insurance</span>
+                                    </label>
+                                </div>
+
+                                <button type="submit" className="btn btn-success" style={{ width: '100%' }}>
+                                    Submit & Join Production
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render App
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
