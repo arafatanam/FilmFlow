@@ -13,8 +13,23 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 app.use(express.json());
+
+// Health check
+app.get("/", (req, res) => {
+  res.json({
+    message: "FilmFlow Backend is running",
+    env: process.env.NODE_ENV,
+  });
+});
 
 // Database connection
 const pool = new Pool({
@@ -56,7 +71,7 @@ app.post("/api/projects", async (req, res) => {
       `INSERT INTO projects (name, project_code, start_date, end_date, status) 
              VALUES ($1, $2, $3, $4, 'active') 
              RETURNING *`,
-      [name, code, start_date, end_date]
+      [name, code, start_date, end_date],
     );
 
     res.status(201).json({
@@ -78,7 +93,7 @@ app.get("/api/projects", async (req, res) => {
              FROM projects p
              LEFT JOIN project_crew pc ON p.id = pc.project_id
              GROUP BY p.id
-             ORDER BY p.created_at DESC`
+             ORDER BY p.created_at DESC`,
     );
     res.json({ projects: result.rows });
   } catch (error) {
@@ -93,7 +108,7 @@ app.get("/api/projects/code/:code", async (req, res) => {
     const { code } = req.params;
     const result = await pool.query(
       "SELECT id, name, project_code, start_date, end_date, status FROM projects WHERE project_code = $1",
-      [code]
+      [code],
     );
 
     if (result.rows.length === 0) {
@@ -118,7 +133,7 @@ app.put("/api/projects/:id/dates", async (req, res) => {
              SET start_date = $1, end_date = $2, updated_at = NOW() 
              WHERE id = $3 
              RETURNING *`,
-      [start_date, end_date, id]
+      [start_date, end_date, id],
     );
 
     if (result.rows.length === 0) {
@@ -144,7 +159,7 @@ app.post("/api/projects/:projectCode/crew", async (req, res) => {
     // Get project
     const projectResult = await pool.query(
       "SELECT id FROM projects WHERE project_code = $1",
-      [projectCode]
+      [projectCode],
     );
 
     if (projectResult.rows.length === 0) {
@@ -168,7 +183,7 @@ app.post("/api/projects/:projectCode/crew", async (req, res) => {
     // Check if this email already signed up for this project
     const existingResult = await pool.query(
       "SELECT id FROM project_crew WHERE project_id = $1 AND email = $2",
-      [projectId, email]
+      [projectId, email],
     );
 
     if (existingResult.rows.length > 0) {
@@ -195,7 +210,7 @@ app.post("/api/projects/:projectCode/crew", async (req, res) => {
         dietary_restrictions,
         address,
         has_insurance,
-      ]
+      ],
     );
 
     // Send confirmation email
@@ -231,7 +246,7 @@ app.get("/api/projects/:id/crew", async (req, res) => {
       `SELECT * FROM project_crew 
              WHERE project_id = $1 
              ORDER BY department, name`,
-      [id]
+      [id],
     );
 
     res.json({ crew: result.rows });
@@ -263,7 +278,7 @@ app.get("/api/projects/:id/crew/by-department", async (req, res) => {
              WHERE project_id = $1 
              GROUP BY department
              ORDER BY department`,
-      [id]
+      [id],
     );
 
     res.json({ departments: result.rows });
@@ -286,7 +301,7 @@ app.post("/api/projects/:id/schedule/assign-department", async (req, res) => {
     // Get all crew from this department
     const crewResult = await pool.query(
       "SELECT id FROM project_crew WHERE project_id = $1 AND department = $2",
-      [id, department]
+      [id, department],
     );
 
     const crewIds = crewResult.rows.map((r) => r.id);
@@ -297,8 +312,8 @@ app.post("/api/projects/:id/schedule/assign-department", async (req, res) => {
         `INSERT INTO schedules (project_id, crew_id, shoot_date) 
                  VALUES ($1, $2, $3) 
                  ON CONFLICT (project_id, crew_id, shoot_date) DO NOTHING`,
-        [id, crewId, shoot_date]
-      )
+        [id, crewId, shoot_date],
+      ),
     );
 
     await Promise.all(insertPromises);
@@ -334,7 +349,7 @@ app.get("/api/projects/:id/schedule", async (req, res) => {
              WHERE s.project_id = $1
              GROUP BY s.shoot_date
              ORDER BY s.shoot_date`,
-      [id]
+      [id],
     );
 
     res.json({ schedule: result.rows });
@@ -353,7 +368,7 @@ app.delete(
 
       await pool.query(
         "DELETE FROM schedules WHERE project_id = $1 AND crew_id = $2 AND shoot_date = $3",
-        [projectId, crewId, date]
+        [projectId, crewId, date],
       );
 
       res.json({ message: "Crew member removed from date" });
@@ -361,7 +376,7 @@ app.delete(
       console.error("Remove crew error:", error);
       res.status(500).json({ error: "Failed to remove crew" });
     }
-  }
+  },
 );
 
 // Get crew member's assigned dates
@@ -376,7 +391,7 @@ app.get("/api/crew/:email/dates/:projectCode", async (req, res) => {
              JOIN projects p ON s.project_id = p.id
              WHERE pc.email = $1 AND p.project_code = $2
              ORDER BY s.shoot_date`,
-      [email, projectCode]
+      [email, projectCode],
     );
 
     res.json({ dates: result.rows.map((r) => r.shoot_date) });
@@ -399,7 +414,7 @@ app.post("/api/projects/:id/callsheet/send", async (req, res) => {
     // Get project info
     const projectResult = await pool.query(
       "SELECT name FROM projects WHERE id = $1",
-      [id]
+      [id],
     );
 
     if (projectResult.rows.length === 0) {
@@ -415,7 +430,7 @@ app.post("/api/projects/:id/callsheet/send", async (req, res) => {
              JOIN project_crew pc ON s.crew_id = pc.id
              WHERE s.project_id = $1 AND s.shoot_date = $2
              ORDER BY pc.department, pc.name`,
-      [id, shoot_date]
+      [id, shoot_date],
     );
 
     const crew = crewResult.rows;
@@ -549,7 +564,7 @@ app.post("/api/projects/:id/callsheet/send", async (req, res) => {
             encoding: "base64",
           },
         ],
-      })
+      }),
     );
 
     await Promise.all(emailPromises);
@@ -559,7 +574,7 @@ app.post("/api/projects/:id/callsheet/send", async (req, res) => {
       `INSERT INTO call_sheets 
              (project_id, shoot_date, call_time, location, scenes, pdf_url, emailed_at) 
              VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-      [id, shoot_date, call_time, location, scenes, "base64pdf"]
+      [id, shoot_date, call_time, location, scenes, "base64pdf"],
     );
 
     res.json({
@@ -585,7 +600,7 @@ app.get("/api/projects/:id/callsheets", async (req, res) => {
              WHERE cs.project_id = $1
              GROUP BY cs.id
              ORDER BY cs.shoot_date DESC`,
-      [id]
+      [id],
     );
 
     res.json({ callsheets: result.rows });
@@ -620,7 +635,7 @@ app.get("/api/projects/:id/stats", async (req, res) => {
             LEFT JOIN schedules s ON pc.id = s.crew_id
             WHERE pc.project_id = $1
         `,
-      [id]
+      [id],
     );
 
     res.json({ stats: stats.rows[0] });
