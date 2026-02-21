@@ -2,20 +2,21 @@
   "name": "filmflow-backend",
   "version": "1.0.0",
   "description": "FilmFlow Backend API",
-  "main": "server.js",
+  "main": "server-resend.js",
   "scripts": {
-    "start": "node server.js",
-    "build": "echo 'No build required'"
+    "start": "node server-resend.js",
+    "dev": "nodemon server-resend.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "pg": "^8.11.3",
-    "@resend/node": "^0.1.0",
-    "pdfkit": "^0.14.0"
+    "resend": "^4.0.0",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.5.29"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }
