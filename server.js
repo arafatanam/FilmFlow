@@ -3,7 +3,21 @@
 
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false,
+        require: true,
+        // Force SSL mode
+        sslmode: 'require'
+    },
+    // Add these to help with connection
+    connectionTimeoutMillis: 15000,
+    idleTimeoutMillis: 30000,
+    max: 20
+});
+
 const { Resend } = require('resend');
 const jsPDF = require('jspdf');
 require('jspdf-autotable');
@@ -67,17 +81,28 @@ const pool = new Pool({
 // Test database connection on startup
 async function connectDatabase() {
     try {
+        console.log('🔄 Attempting database connection...');
+        console.log('📊 Using database URL:', process.env.DATABASE_URL?.replace(/:[^:]*@/, ':***@'));
+        
         const client = await pool.connect();
         console.log('✅ Database connected successfully');
         
         const result = await client.query('SELECT NOW() as time');
         console.log(`✅ Database time: ${result.rows[0].time}`);
         
+        // Test a simple query to verify permissions
+        const testResult = await client.query('SELECT 1 as test');
+        console.log('✅ Test query successful');
+        
         client.release();
         return true;
     } catch (error) {
         console.error('❌ Database connection failed:', error.message);
-        console.error('🔧 This is likely an SSL issue - the fix is applied!');
+        console.error('🔧 Error code:', error.code);
+        console.error('🔧 Check:');
+        console.error('   1. DATABASE_URL is correct');
+        console.error('   2. Supabase allows connections from Render');
+        console.error('   3. Password is correct (reset if needed)');
         return false;
     }
 }
