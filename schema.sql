@@ -223,7 +223,7 @@ BEGIN
     (project_id_var, 'Sarah Chen', '555-0101', 'sarah@filmcrew.com', 'Camera', 'John Chen', '555-0102', ARRAY['Vegetarian'], true),
     (project_id_var, 'Marcus Rodriguez', '555-0103', 'marcus@filmcrew.com', 'Sound', 'Maria Rodriguez', '555-0104', ARRAY['Gluten-Free'], true),
     (project_id_var, 'Emma Thompson', '555-0105', 'emma@filmcrew.com', 'Art Department', 'David Thompson', '555-0106', ARRAY['Vegan', 'Nut Allergy'], false),
-    (project_id_var, 'Jake Williams', '555-0107', 'jake@filmcrew.com', 'Grip', 'Lisa Williams', '555-0108', ARRAY[], true),
+    (project_id_var, 'Jake Williams', '555-0107', 'jake@filmcrew.com', 'Grip', 'Lisa Williams', '555-0108', ARRAY[]::text[], true),
     (project_id_var, 'Maya Patel', '555-0109', 'maya@filmcrew.com', 'Wardrobe', 'Raj Patel', '555-0110', ARRAY['Halal'], true);
     
     -- Schedule some crew
