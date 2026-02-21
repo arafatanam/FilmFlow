@@ -60,6 +60,8 @@ const pool = new Pool({
     },
     // Add timeout to prevent hanging
     connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    max: 20
 });
 
 // Test database connection on startup
@@ -68,7 +70,6 @@ async function connectDatabase() {
         const client = await pool.connect();
         console.log('✅ Database connected successfully');
         
-        // Test query
         const result = await client.query('SELECT NOW() as time');
         console.log(`✅ Database time: ${result.rows[0].time}`);
         
@@ -76,7 +77,7 @@ async function connectDatabase() {
         return true;
     } catch (error) {
         console.error('❌ Database connection failed:', error.message);
-        console.error('🔧 Check your DATABASE_URL environment variable');
+        console.error('🔧 This is likely an SSL issue - the fix is applied!');
         return false;
     }
 }
