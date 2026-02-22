@@ -2,52 +2,8 @@
 // Optimized for Render + Supabase + Netlify
 
 const express = require("express");
-
-const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow all Netlify apps and localhost
-        const allowedOrigins = [
-            'https://filmfloww.netlify.app',
-            'http://localhost:3000',
-            'http://localhost:5000',
-            'http://127.0.0.1:3000'
-        ];
-        
-        // Allow requests with no origin (like mobile apps, curl)
-        if (!origin) return callback(null, true);
-        
-        // Allow any netlify.app subdomain
-        if (origin.includes('netlify.app')) {
-            return callback(null, true);
-        }
-        
-        // Check exact matches
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            return callback(null, true);
-        }
-        
-        callback(null, process.env.FRONTEND_URL || true);
-    },
-    credentials: true,
-    optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
-
-// Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false,  // This accepts self-signed certificates
-        require: true
-    },
-    // Force IPv4 by disabling IPv6 lookup
-    family: 4,  // This forces IPv4
-    connectionTimeoutMillis: 10000,
-});
-
+const cors = require("cors");
+const { Pool } = require("pg");
 const { Resend } = require("resend");
 const jsPDF = require("jspdf");
 require("jspdf-autotable");
@@ -77,13 +33,16 @@ app.use(
       callback(null, process.env.FRONTEND_URL || true);
     },
     credentials: true,
-  }),
+  })
 );
+
+// Handle preflight requests
+app.options("*", cors());
 
 app.use(express.json());
 
 // ============================================
-// DATABASE CONNECTION
+// DATABASE CONNECTION (SINGLE DECLARATION)
 // ============================================
 
 const pool = new Pool({
@@ -92,6 +51,8 @@ const pool = new Pool({
     rejectUnauthorized: false,
     require: true,
   },
+  // Force IPv4
+  family: 4,
   connectionTimeoutMillis: 15000,
   idleTimeoutMillis: 30000,
   max: 20,
@@ -99,21 +60,21 @@ const pool = new Pool({
 
 // Test database connection
 async function connectDatabase() {
-    try {
-        console.log('🔄 Attempting database connection...');
-        const client = await pool.connect();
-        console.log('✅ Database connected successfully');
-        
-        const result = await client.query('SELECT NOW() as time');
-        console.log(`✅ Database time: ${result.rows[0].time}`);
-        
-        client.release();
-        return true;
-    } catch (error) {
-        console.error('❌ Database connection failed:', error.message);
-        console.error('🔧 Error code:', error.code);
-        return false;
-    }
+  try {
+    console.log("🔄 Attempting database connection...");
+    const client = await pool.connect();
+    console.log("✅ Database connected successfully");
+
+    const result = await client.query("SELECT NOW() as time");
+    console.log(`✅ Database time: ${result.rows[0].time}`);
+
+    client.release();
+    return true;
+  } catch (error) {
+    console.error("❌ Database connection failed:", error.message);
+    console.error("🔧 Error code:", error.code);
+    return false;
+  }
 }
 
 connectDatabase();
@@ -273,7 +234,7 @@ app.post("/api/projects", async (req, res) => {
              (name, project_code, start_date, end_date, location, latitude, longitude, status) 
              VALUES ($1, $2, $3, $4, $5, $6, $7, 'active') 
              RETURNING *`,
-      [name, code, start_date, end_date, location, latitude, longitude],
+      [name, code, start_date, end_date, location, latitude, longitude]
     );
 
     const project = result.rows[0];
@@ -319,7 +280,7 @@ app.get("/api/projects/code/:code", async (req, res) => {
     const result = await pool.query(
       `SELECT id, name, project_code, start_date, end_date, location, status 
              FROM projects WHERE project_code = $1`,
-      [code],
+      [code]
     );
 
     if (result.rows.length === 0) {
@@ -365,7 +326,7 @@ app.put("/api/projects/:id", async (req, res) => {
                  updated_at = NOW()
              WHERE id = $6 
              RETURNING *`,
-      [start_date, end_date, location, name, status, id],
+      [start_date, end_date, location, name, status, id]
     );
 
     if (result.rows.length === 0) {
@@ -390,7 +351,7 @@ app.post("/api/crew/check", async (req, res) => {
 
     const result = await pool.query(
       "SELECT id, full_name, phone, department FROM crew_profiles WHERE email = $1",
-      [email],
+      [email]
     );
 
     if (result.rows.length > 0) {
@@ -425,7 +386,7 @@ app.post("/api/crew/profile", async (req, res) => {
     // Check if crew exists
     const existing = await pool.query(
       "SELECT id FROM crew_profiles WHERE email = $1",
-      [email],
+      [email]
     );
 
     let crewId;
@@ -455,7 +416,7 @@ app.post("/api/crew/profile", async (req, res) => {
           insurance_expiry,
           certifications,
           email,
-        ],
+        ]
       );
       crewId = result.rows[0].id;
     } else {
@@ -480,7 +441,7 @@ app.post("/api/crew/profile", async (req, res) => {
           has_insurance,
           insurance_expiry,
           certifications,
-        ],
+        ]
       );
       crewId = result.rows[0].id;
     }
@@ -503,7 +464,7 @@ app.get("/api/crew/:id", async (req, res) => {
 
     const result = await pool.query(
       "SELECT * FROM crew_profiles WHERE id = $1",
-      [id],
+      [id]
     );
 
     if (result.rows.length === 0) {
@@ -525,7 +486,7 @@ app.post("/api/crew/:id/availability", async (req, res) => {
 
     const result = await pool.query(
       "UPDATE crew_profiles SET personal_unavailable_dates = $1 WHERE id = $2 RETURNING id",
-      [unavailable_dates, id],
+      [unavailable_dates, id]
     );
 
     res.json({ success: true });
@@ -544,7 +505,7 @@ app.post("/api/projects/:projectCode/crew/signup", async (req, res) => {
   try {
     const { projectCode } = req.params;
     const {
-      crew_id, // If existing crew
+      crew_id,
       full_name,
       phone,
       email,
@@ -557,13 +518,13 @@ app.post("/api/projects/:projectCode/crew/signup", async (req, res) => {
       has_insurance,
       insurance_expiry,
       certifications,
-      available_dates, // Array of dates they can work
+      available_dates,
     } = req.body;
 
     // Get project
     const projectResult = await pool.query(
       "SELECT id, name FROM projects WHERE project_code = $1",
-      [projectCode],
+      [projectCode]
     );
 
     if (projectResult.rows.length === 0) {
@@ -597,7 +558,7 @@ app.post("/api/projects/:projectCode/crew/signup", async (req, res) => {
           has_insurance,
           insurance_expiry,
           certifications,
-        ],
+        ]
       );
       crewId = profileResult.rows[0].id;
     }
@@ -610,7 +571,7 @@ app.post("/api/projects/:projectCode/crew/signup", async (req, res) => {
              ON CONFLICT (project_id, crew_id) 
              DO UPDATE SET form_completed = true
              RETURNING id`,
-      [projectId, crewId, department],
+      [projectId, crewId, department]
     );
 
     const projectCrewId = projectCrewResult.rows[0].id;
@@ -622,7 +583,7 @@ app.post("/api/projects/:projectCode/crew/signup", async (req, res) => {
           `INSERT INTO crew_availability (project_crew_id, shoot_date, is_available)
                      VALUES ($1, $2, true)
                      ON CONFLICT (project_crew_id, shoot_date) DO NOTHING`,
-          [projectCrewId, date],
+          [projectCrewId, date]
         );
       }
     }
@@ -673,7 +634,7 @@ app.get("/api/admin/project/:id/stats", async (req, res) => {
 
     const result = await pool.query(
       "SELECT * FROM project_completion WHERE id = $1",
-      [id],
+      [id]
     );
 
     res.json({ stats: result.rows[0] || {} });
@@ -706,7 +667,7 @@ app.get("/api/admin/project/:id/crew", async (req, res) => {
             GROUP BY cp.id, pc.id
             ORDER BY cp.department, cp.full_name
         `,
-      [id],
+      [id]
     );
 
     // Group by department
@@ -753,7 +714,7 @@ app.get("/api/admin/project/:id/pending", async (req, res) => {
             AND (pc.missing_emergency OR pc.missing_dietary OR pc.missing_insurance OR pc.form_completed = false)
             ORDER BY cp.department, cp.full_name
         `,
-      [id],
+      [id]
     );
 
     res.json({ pending: result.rows });
@@ -822,7 +783,7 @@ app.post("/api/schedule/assign", async (req, res) => {
             ? "unavailable"
             : null,
         override,
-      ],
+      ]
     );
 
     res.json({
@@ -850,7 +811,7 @@ app.post("/api/schedule/assign-department", async (req, res) => {
              FROM project_crew pc
              JOIN crew_profiles cp ON pc.crew_id = cp.id
              WHERE pc.project_id = $1 AND cp.department = $2`,
-      [project_id, department],
+      [project_id, department]
     );
 
     const crewIds = crewResult.rows.map((r) => r.crew_id);
@@ -869,7 +830,7 @@ app.post("/api/schedule/assign-department", async (req, res) => {
       const conflictCheck = await checkConflicts(
         project_id,
         crewId,
-        shoot_date,
+        shoot_date
       );
       conflicts.push(conflictCheck);
 
@@ -892,7 +853,7 @@ app.post("/api/schedule/assign-department", async (req, res) => {
             : conflictCheck.personal_unavailable
               ? "unavailable"
               : null,
-        ],
+        ]
       );
 
       if (assignResult.rows.length > 0) {
@@ -901,7 +862,7 @@ app.post("/api/schedule/assign-department", async (req, res) => {
     }
 
     const hasConflicts = conflicts.some(
-      (c) => c.double_booked || c.personal_unavailable,
+      (c) => c.double_booked || c.personal_unavailable
     );
 
     res.json({
@@ -910,7 +871,7 @@ app.post("/api/schedule/assign-department", async (req, res) => {
       total: crewIds.length,
       hasConflicts,
       conflicts: conflicts.filter(
-        (c) => c.double_booked || c.personal_unavailable,
+        (c) => c.double_booked || c.personal_unavailable
       ).length,
     });
   } catch (error) {
@@ -947,7 +908,7 @@ app.get("/api/schedule/project/:id", async (req, res) => {
             WHERE sa.project_id = $1
             ORDER BY sa.shoot_date, sa.department, cp.full_name
         `,
-      [id],
+      [id]
     );
 
     // Group by date
@@ -989,7 +950,7 @@ app.get("/api/schedule/project/:id/conflicts", async (req, res) => {
 
     const result = await pool.query(
       "SELECT * FROM conflict_report WHERE project_id = $1",
-      [id],
+      [id]
     );
 
     const summary = {
@@ -1018,7 +979,7 @@ app.delete("/api/schedule/:projectId/:crewId/:date", async (req, res) => {
 
     await pool.query(
       "DELETE FROM schedule_assignments WHERE project_id = $1 AND crew_id = $2 AND shoot_date = $3",
-      [projectId, crewId, date],
+      [projectId, crewId, date]
     );
 
     res.json({ message: "Crew member removed from date" });
@@ -1045,7 +1006,7 @@ app.post("/api/callsheet/generate", async (req, res) => {
     // Get project info
     const projectResult = await pool.query(
       "SELECT name, location, latitude, longitude FROM projects WHERE id = $1",
-      [project_id],
+      [project_id]
     );
 
     if (projectResult.rows.length === 0) {
@@ -1075,7 +1036,7 @@ app.post("/api/callsheet/generate", async (req, res) => {
             WHERE sa.project_id = $1 AND sa.shoot_date = $2
             ORDER BY cp.department, cp.full_name
         `,
-      [project_id, shoot_date],
+      [project_id, shoot_date]
     );
 
     const crew = crewResult.rows;
@@ -1087,12 +1048,12 @@ app.post("/api/callsheet/generate", async (req, res) => {
     // Get weather and sun times
     const weather = await getWeatherForecast(
       project.location || "Unknown",
-      shoot_date,
+      shoot_date
     );
     const sunTimes = await getSunTimes(
       project.latitude || 0,
       project.longitude || 0,
-      shoot_date,
+      shoot_date
     );
 
     // Generate AD flags (private)
@@ -1106,7 +1067,7 @@ app.post("/api/callsheet/generate", async (req, res) => {
         member.dietary_restrictions.length === 0
       ) {
         adFlags.push(
-          `⚠️ ${member.full_name}: No dietary info - notify catering`,
+          `⚠️ ${member.full_name}: No dietary info - notify catering`
         );
       }
       if (
@@ -1115,12 +1076,12 @@ app.post("/api/callsheet/generate", async (req, res) => {
           new Date(member.insurance_expiry) < new Date(shoot_date))
       ) {
         adFlags.push(
-          `⚠️ ${member.full_name}: Insurance issue - verify before shoot`,
+          `⚠️ ${member.full_name}: Insurance issue - verify before shoot`
         );
       }
       if (member.conflict_warning) {
         adFlags.push(
-          `⚠️ ${member.full_name}: ${member.conflict_type.replace("_", " ")} - scheduled with warning`,
+          `⚠️ ${member.full_name}: ${member.conflict_type.replace("_", " ")} - scheduled with warning`
         );
       }
     });
@@ -1155,7 +1116,7 @@ app.post("/api/callsheet/generate", async (req, res) => {
       `🌤️ ${weather.condition} ${weather.temp}°F | 🌅 Sunrise ${sunTimes.sunrise} | 🌇 Sunset ${sunTimes.sunset}`,
       105,
       48,
-      { align: "center" },
+      { align: "center" }
     );
 
     let yPos = 60;
@@ -1274,7 +1235,7 @@ app.post("/api/callsheet/generate", async (req, res) => {
             content: pdfBase64,
           },
         ],
-      }),
+      })
     );
 
     await Promise.all(emailPromises);
@@ -1301,7 +1262,7 @@ app.post("/api/callsheet/generate", async (req, res) => {
         JSON.stringify(adFlags),
         "pdf-generated",
         crew.length,
-      ],
+      ]
     );
 
     res.json({
@@ -1325,7 +1286,7 @@ app.get("/api/callsheet/project/:id", async (req, res) => {
       `SELECT * FROM call_sheets 
              WHERE project_id = $1 
              ORDER BY shoot_date DESC`,
-      [id],
+      [id]
     );
 
     res.json({ callsheets: result.rows });
