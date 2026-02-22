@@ -1,7 +1,7 @@
 {
   "name": "filmflow-backend",
-  "version": "2.0.0",
-  "description": "FilmFlow backend API for crew management and call sheets",
+  "version": "3.0.0",
+  "description": "FilmFlow - Complete Production Management System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -17,7 +17,8 @@
     "dotenv": "^16.3.1",
     "resend": "^4.0.0",
     "jspdf": "^2.5.1",
-    "jspdf-autotable": "^3.8.0"
+    "jspdf-autotable": "^3.8.0",
+    "crypto": "^1.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
