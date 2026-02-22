@@ -4,6 +4,7 @@
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
+const https = require('https');
 const { Resend } = require("resend");
 const jsPDF = require("jspdf");
 require("jspdf-autotable");
@@ -41,6 +42,10 @@ app.options("*", cors());
 
 app.use(express.json());
 
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false
+});
+
 // ============================================
 // DATABASE CONNECTION (SINGLE DECLARATION)
 // ============================================
@@ -50,29 +55,48 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false,
     require: true,
+    // Use the custom agent
+    agent: httpsAgent
   },
   // Force IPv4
   family: 4,
   connectionTimeoutMillis: 15000,
   idleTimeoutMillis: 30000,
   max: 20,
+  // Additional settings for SSL
+  sslmode: 'require'
 });
 
 // Test database connection
 async function connectDatabase() {
   try {
-    console.log("🔄 Attempting database connection...");
+    console.log('🔄 Attempting database connection...');
+    console.log('📊 Using database URL:', process.env.DATABASE_URL?.replace(/:[^:]*@/, ':***@'));
+    
     const client = await pool.connect();
-    console.log("✅ Database connected successfully");
+    console.log('✅ Database connected successfully');
 
-    const result = await client.query("SELECT NOW() as time");
+    const result = await client.query('SELECT NOW() as time');
     console.log(`✅ Database time: ${result.rows[0].time}`);
-
+    
+    // Test a simple query to verify permissions
+    const testResult = await client.query('SELECT 1 as test');
+    console.log('✅ Test query successful');
+    
     client.release();
     return true;
   } catch (error) {
-    console.error("❌ Database connection failed:", error.message);
-    console.error("🔧 Error code:", error.code);
+    console.error('❌ Database connection failed:', error.message);
+    console.error('🔧 Error code:', error.code);
+    console.error('🔧 Error details:', error);
+    
+    // Log more details about the error
+    if (error.message.includes('self-signed certificate')) {
+      console.error('🔧 This is an SSL certificate issue. The fix has been applied with rejectUnauthorized: false');
+    }
+    if (error.message.includes('ENETUNREACH')) {
+      console.error('🔧 This is an IPv6 network issue. The fix with family: 4 has been applied');
+    }
     return false;
   }
 }
