@@ -2,7 +2,40 @@
 // Optimized for Render + Supabase + Netlify
 
 const express = require("express");
-const cors = require("cors");
+
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow all Netlify apps and localhost
+        const allowedOrigins = [
+            'https://filmfloww.netlify.app',
+            'http://localhost:3000',
+            'http://localhost:5000',
+            'http://127.0.0.1:3000'
+        ];
+        
+        // Allow requests with no origin (like mobile apps, curl)
+        if (!origin) return callback(null, true);
+        
+        // Allow any netlify.app subdomain
+        if (origin.includes('netlify.app')) {
+            return callback(null, true);
+        }
+        
+        // Check exact matches
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
+        }
+        
+        callback(null, process.env.FRONTEND_URL || true);
+    },
+    credentials: true,
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
