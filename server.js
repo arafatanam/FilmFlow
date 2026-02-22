@@ -1321,6 +1321,36 @@ app.get("/api/callsheet/project/:id", async (req, res) => {
 });
 
 // ============================================
+// DELETE PROJECT ENDPOINT
+// ============================================
+
+app.delete("/api/projects/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if project exists
+    const checkResult = await pool.query(
+      "SELECT id, name FROM projects WHERE id = $1",
+      [id]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    
+    await pool.query("DELETE FROM projects WHERE id = $1", [id]);
+    
+    res.json({ 
+      success: true, 
+      message: `Project "${checkResult.rows[0].name}" deleted successfully` 
+    });
+  } catch (error) {
+    console.error("Delete project error:", error);
+    res.status(500).json({ error: "Failed to delete project" });
+  }
+});
+
+// ============================================
 // ERROR HANDLING
 // ============================================
 
