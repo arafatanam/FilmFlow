@@ -244,24 +244,28 @@ app.get("/api/health/db", async (req, res) => {
 // Create new project
 app.post("/api/projects", async (req, res) => {
   try {
-    const { name, start_date, end_date, location, latitude, longitude } =
-      req.body;
+    const { name, start_date, end_date, location, latitude, longitude } = req.body;
+
+    console.log('Creating project with data:', { name, start_date, end_date, location });
 
     if (!name || !start_date || !end_date) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const code = generateProjectCode(name);
+    console.log('Generated project code:', code);
 
     const result = await pool.query(
       `INSERT INTO projects 
-             (name, project_code, start_date, end_date, location, latitude, longitude, status) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'active') 
-             RETURNING *`,
+       (name, project_code, start_date, end_date, location, latitude, longitude, status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active') 
+       RETURNING *`,
       [name, code, start_date, end_date, location, latitude, longitude]
     );
 
     const project = result.rows[0];
+    console.log('Project saved to DB:', project);
+
     const inviteLink = getInviteLink(project.project_code);
 
     res.status(201).json({
@@ -270,7 +274,7 @@ app.post("/api/projects", async (req, res) => {
     });
   } catch (error) {
     console.error("Project creation error:", error);
-    res.status(500).json({ error: "Failed to create project" });
+    res.status(500).json({ error: "Failed to create project: " + error.message });
   }
 });
 
