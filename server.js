@@ -3,7 +3,18 @@
 
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false,  // This accepts self-signed certificates
+        require: true
+    },
+    // Force IPv4 by disabling IPv6 lookup
+    family: 4,  // This forces IPv4
+    connectionTimeoutMillis: 10000,
+});
+
 const { Resend } = require("resend");
 const jsPDF = require("jspdf");
 require("jspdf-autotable");
@@ -55,19 +66,21 @@ const pool = new Pool({
 
 // Test database connection
 async function connectDatabase() {
-  try {
-    const client = await pool.connect();
-    console.log("✅ Database connected successfully");
-
-    const result = await client.query("SELECT NOW() as time");
-    console.log(`✅ Database time: ${result.rows[0].time}`);
-
-    client.release();
-    return true;
-  } catch (error) {
-    console.error("❌ Database connection failed:", error.message);
-    return false;
-  }
+    try {
+        console.log('🔄 Attempting database connection...');
+        const client = await pool.connect();
+        console.log('✅ Database connected successfully');
+        
+        const result = await client.query('SELECT NOW() as time');
+        console.log(`✅ Database time: ${result.rows[0].time}`);
+        
+        client.release();
+        return true;
+    } catch (error) {
+        console.error('❌ Database connection failed:', error.message);
+        console.error('🔧 Error code:', error.code);
+        return false;
+    }
 }
 
 connectDatabase();
