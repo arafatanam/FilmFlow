@@ -1404,82 +1404,39 @@ app.listen(port, () => {
 });
 
 // ============================================
-// DELETE CREW MEMBER ENDPOINT
+// DELETE CREW MEMBER ENDPOINT (SIMPLER WITH CASCADE)
 // ============================================
 
 app.delete("/api/crew/:id", async (req, res) => {
-  const client = await pool.connect();
-
   try {
     const { id } = req.params;
     console.log(`Attempting to delete crew member with ID: ${id}`);
 
-    // Start a transaction
-    await client.query("BEGIN");
-
     // Check if crew exists
-    const checkResult = await client.query(
+    const checkResult = await pool.query(
       "SELECT id, full_name FROM crew_profiles WHERE id = $1",
       [id],
     );
 
     if (checkResult.rows.length === 0) {
-      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Crew member not found" });
     }
 
     const crewName = checkResult.rows[0].full_name;
-    console.log(`Found crew member: ${crewName}`);
 
-    // 1. Delete from crew_availability (references project_crew)
-    await client.query(
-      `DELETE FROM crew_availability 
-       WHERE project_crew_id IN (
-         SELECT id FROM project_crew WHERE crew_id = $1
-       )`,
-      [id],
-    );
-    console.log(`Deleted crew availability for crew ${id}`);
-
-    // 2. Delete from schedule_assignments (references crew_profiles directly)
-    await client.query("DELETE FROM schedule_assignments WHERE crew_id = $1", [
-      id,
-    ]);
-    console.log(`Deleted schedule assignments for crew ${id}`);
-
-    // 3. Delete from project_crew (references crew_profiles)
-    await client.query("DELETE FROM project_crew WHERE crew_id = $1", [id]);
-    console.log(`Deleted project crew links for crew ${id}`);
-
-    // 4. Finally, delete the crew member from crew_profiles
-    const deleteResult = await client.query(
-      "DELETE FROM crew_profiles WHERE id = $1 RETURNING id",
-      [id],
-    );
-
-    if (deleteResult.rows.length === 0) {
-      throw new Error("Failed to delete crew profile");
-    }
-    console.log(`Deleted crew profile ${id}`);
-
-    // Commit the transaction
-    await client.query("COMMIT");
+    // Delete crew member (cascade will delete related records automatically)
+    await pool.query("DELETE FROM crew_profiles WHERE id = $1", [id]);
 
     res.json({
       success: true,
       message: `${crewName} deleted successfully`,
     });
   } catch (error) {
-    // Rollback in case of error
-    await client.query("ROLLBACK");
     console.error("Error deleting crew member:", error);
     res.status(500).json({
       error: "Failed to delete crew member",
       details: error.message,
     });
-  } finally {
-    // Release the client back to the pool
-    client.release();
   }
 });
 
