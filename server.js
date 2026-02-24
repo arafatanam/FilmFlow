@@ -47,6 +47,67 @@ const httpsAgent = new https.Agent({
 });
 
 // ============================================
+// Put this RIGHT AFTER your middleware (around line 30-40)
+// ============================================
+
+app.get("/api/ping", (req, res) => {
+  console.log("🏓 PING endpoint hit!");
+  res.json({ message: "pong", time: new Date().toISOString() });
+});
+
+// ============================================
+// DELETE CREW MEMBER ENDPOINT (FULL VERSION)
+// ============================================
+
+app.delete("/api/crew/:id", async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { id } = req.params;
+    console.log(`🗑️ Deleting crew member ID: ${id}`);
+
+    await client.query("BEGIN");
+
+    // Check if crew exists
+    const checkResult = await client.query(
+      "SELECT id, full_name FROM crew_profiles WHERE id = $1",
+      [id],
+    );
+
+    if (checkResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Crew member not found" });
+    }
+
+    const crewName = checkResult.rows[0].full_name;
+
+    // Delete from schedule_assignments
+    await client.query("DELETE FROM schedule_assignments WHERE crew_id = $1", [
+      id,
+    ]);
+
+    // Delete from project_crew
+    await client.query("DELETE FROM project_crew WHERE crew_id = $1", [id]);
+
+    // Delete the crew member
+    await client.query("DELETE FROM crew_profiles WHERE id = $1", [id]);
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      message: `${crewName} deleted successfully`,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error deleting crew member:", error);
+    res.status(500).json({ error: "Failed to delete crew member" });
+  } finally {
+    client.release();
+  }
+});
+
+// ============================================
 // DATABASE CONNECTION (SINGLE DECLARATION)
 // ============================================
 
@@ -1401,37 +1462,6 @@ app.listen(port, () => {
 ║    Frontend: ${process.env.FRONTEND_URL || "Not set"}  ║
 ╚════════════════════════════════════════════╝
     `);
-});
-
-// ============================================
-// TEST ENDPOINT - DELETE THIS LATER
-// ============================================
-
-app.get("/api/test-delete", (req, res) => {
-  console.log("✅ Test endpoint reached!");
-  res.json({ message: "Delete endpoint should work!" });
-});
-
-// ============================================
-// DELETE CREW MEMBER ENDPOINT
-// ============================================
-
-app.delete("/api/crew/:id", async (req, res) => {
-  console.log("🚨 DELETE ENDPOINT HIT! ID:", req.params.id);
-
-  try {
-    const { id } = req.params;
-
-    // Simple response to test if endpoint is reached
-    res.json({
-      success: true,
-      message: `Delete endpoint reached for ID: ${id}`,
-      note: "This is just a test - database delete not performed yet",
-    });
-  } catch (error) {
-    console.error("Error in delete endpoint:", error);
-    res.status(500).json({ error: error.message });
-  }
 });
 
 module.exports = app;
