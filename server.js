@@ -1404,39 +1404,162 @@ app.listen(port, () => {
 });
 
 // ============================================
-// DELETE CREW MEMBER ENDPOINT (SIMPLER WITH CASCADE)
+// DELETE CREW MEMBER ENDPOINT
 // ============================================
 
 app.delete("/api/crew/:id", async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { id } = req.params;
-    console.log(`Attempting to delete crew member with ID: ${id}`);
+    console.log("=".repeat(50));
+    console.log(`🔍 DELETE REQUEST RECEIVED for crew ID: ${id}`);
+    console.log("=".repeat(50));
+
+    // Start a transaction
+    await client.query("BEGIN");
+    console.log("📦 Transaction started");
 
     // Check if crew exists
-    const checkResult = await pool.query(
-      "SELECT id, full_name FROM crew_profiles WHERE id = $1",
+    console.log(`🔎 Checking if crew ID ${id} exists...`);
+    const checkResult = await client.query(
+      "SELECT id, full_name, email FROM crew_profiles WHERE id = $1",
       [id],
     );
 
     if (checkResult.rows.length === 0) {
+      console.log(`❌ Crew member with ID ${id} NOT FOUND`);
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Crew member not found" });
     }
 
     const crewName = checkResult.rows[0].full_name;
+    const crewEmail = checkResult.rows[0].email;
+    console.log(`✅ Found crew member: ${crewName} (${crewEmail})`);
 
-    // Delete crew member (cascade will delete related records automatically)
-    await pool.query("DELETE FROM crew_profiles WHERE id = $1", [id]);
+    // Check for related records
+    console.log("🔎 Checking for related records...");
+
+    // Check schedule_assignments
+    const scheduleCheck = await client.query(
+      "SELECT COUNT(*) FROM schedule_assignments WHERE crew_id = $1",
+      [id],
+    );
+    console.log(
+      `📊 schedule_assignments count: ${scheduleCheck.rows[0].count}`,
+    );
+
+    // Check project_crew
+    const projectCrewCheck = await client.query(
+      "SELECT COUNT(*) FROM project_crew WHERE crew_id = $1",
+      [id],
+    );
+    console.log(`📊 project_crew count: ${projectCrewCheck.rows[0].count}`);
+
+    // Get project_crew IDs if any
+    if (parseInt(projectCrewCheck.rows[0].count) > 0) {
+      const projectCrewResult = await client.query(
+        "SELECT id FROM project_crew WHERE crew_id = $1",
+        [id],
+      );
+      const projectCrewIds = projectCrewResult.rows.map((row) => row.id);
+      console.log(`📋 project_crew IDs: ${projectCrewIds.join(", ")}`);
+
+      // Check crew_availability for these IDs
+      if (projectCrewIds.length > 0) {
+        const availabilityCheck = await client.query(
+          "SELECT COUNT(*) FROM crew_availability WHERE project_crew_id = ANY($1::int[])",
+          [projectCrewIds],
+        );
+        console.log(
+          `📊 crew_availability count: ${availabilityCheck.rows[0].count}`,
+        );
+      }
+    }
+
+    // Now perform deletions in order
+    console.log("🗑️ Starting deletion process...");
+
+    // Delete from crew_availability (if any project_crew IDs exist)
+    if (parseInt(projectCrewCheck.rows[0].count) > 0) {
+      const projectCrewResult = await client.query(
+        "SELECT id FROM project_crew WHERE crew_id = $1",
+        [id],
+      );
+      const projectCrewIds = projectCrewResult.rows.map((row) => row.id);
+
+      if (projectCrewIds.length > 0) {
+        const availabilityResult = await client.query(
+          `DELETE FROM crew_availability WHERE project_crew_id = ANY($1::int[])`,
+          [projectCrewIds],
+        );
+        console.log(
+          `✅ Deleted ${availabilityResult.rowCount} crew_availability records`,
+        );
+      }
+    }
+
+    // Delete from schedule_assignments
+    const scheduleResult = await client.query(
+      "DELETE FROM schedule_assignments WHERE crew_id = $1",
+      [id],
+    );
+    console.log(
+      `✅ Deleted ${scheduleResult.rowCount} schedule_assignments records`,
+    );
+
+    // Delete from project_crew
+    const projectCrewDeleteResult = await client.query(
+      "DELETE FROM project_crew WHERE crew_id = $1",
+      [id],
+    );
+    console.log(
+      `✅ Deleted ${projectCrewDeleteResult.rowCount} project_crew records`,
+    );
+
+    // Finally delete the crew member
+    console.log(`🗑️ Deleting crew profile for ${crewName}...`);
+    const deleteResult = await client.query(
+      "DELETE FROM crew_profiles WHERE id = $1 RETURNING id",
+      [id],
+    );
+
+    if (deleteResult.rows.length === 0) {
+      throw new Error("Failed to delete crew profile");
+    }
+    console.log(`✅ Successfully deleted crew profile for ${crewName}`);
+
+    // Commit the transaction
+    await client.query("COMMIT");
+    console.log("✅ Transaction committed successfully");
+    console.log("=".repeat(50));
+    console.log(`✅ SUCCESS: ${crewName} deleted`);
+    console.log("=".repeat(50));
 
     res.json({
       success: true,
       message: `${crewName} deleted successfully`,
     });
   } catch (error) {
-    console.error("Error deleting crew member:", error);
+    // Rollback in case of error
+    await client.query("ROLLBACK");
+    console.error("=".repeat(50));
+    console.error("❌ ERROR DELETING CREW MEMBER:");
+    console.error("❌ Error message:", error.message);
+    console.error("❌ Error code:", error.code);
+    console.error("❌ Error detail:", error.detail);
+    console.error("❌ Error hint:", error.hint);
+    console.error("❌ Error stack:", error.stack);
+    console.error("=".repeat(50));
+
     res.status(500).json({
       error: "Failed to delete crew member",
       details: error.message,
     });
+  } finally {
+    // Release the client back to the pool
+    client.release();
+    console.log("📦 Database client released");
   }
 });
 
