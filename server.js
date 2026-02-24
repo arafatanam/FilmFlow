@@ -1404,111 +1404,35 @@ app.listen(port, () => {
 });
 
 // ============================================
-// ACTIVITY FEED ENDPOINT
+// DELETE CREW MEMBER ENDPOINT
 // ============================================
 
-// Get recent activities
-app.get("/api/activities", async (req, res) => {
+app.delete("/api/crew/:id", async (req, res) => {
   try {
-    const { limit = 20 } = req.query;
+    const { id } = req.params;
 
-    // This is a combined query from multiple tables
-    const result = await pool.query(
-      `
-      (
-        SELECT 
-          'project_created' as type,
-          p.name as project_name,
-          null as crew_name,
-          null as crew_email,
-          p.created_at as timestamp,
-          p.id as project_id,
-          null as crew_id
-        FROM projects p
-        WHERE p.created_at IS NOT NULL
-      )
-      UNION ALL
-      (
-        SELECT 
-          'crew_joined' as type,
-          p.name as project_name,
-          cp.full_name as crew_name,
-          cp.email as crew_email,
-          pc.signup_date as timestamp,
-          p.id as project_id,
-          cp.id as crew_id
-        FROM project_crew pc
-        JOIN crew_profiles cp ON pc.crew_id = cp.id
-        JOIN projects p ON pc.project_id = p.id
-        WHERE pc.signup_date IS NOT NULL
-      )
-      UNION ALL
-      (
-        SELECT 
-          'crew_updated' as type,
-          p.name as project_name,
-          cp.full_name as crew_name,
-          cp.email as crew_email,
-          cp.updated_at as timestamp,
-          p.id as project_id,
-          cp.id as crew_id
-        FROM crew_profiles cp
-        JOIN project_crew pc ON cp.id = pc.crew_id
-        JOIN projects p ON pc.project_id = p.id
-        WHERE cp.updated_at > cp.created_at
-      )
-      UNION ALL
-      (
-        SELECT 
-          'callsheet_sent' as type,
-          p.name as project_name,
-          null as crew_name,
-          null as crew_email,
-          cs.emailed_at as timestamp,
-          p.id as project_id,
-          null as crew_id
-        FROM call_sheets cs
-        JOIN projects p ON cs.project_id = p.id
-        WHERE cs.emailed_at IS NOT NULL
-      )
-      UNION ALL
-      (
-        SELECT 
-          'project_completed' as type,
-          p.name as project_name,
-          null as crew_name,
-          null as crew_email,
-          p.updated_at as timestamp,
-          p.id as project_id,
-          null as crew_id
-        FROM projects p
-        WHERE p.status = 'completed' AND p.updated_at IS NOT NULL
-      )
-      UNION ALL
-      (
-        SELECT 
-          'schedule_assigned' as type,
-          p.name as project_name,
-          cp.full_name as crew_name,
-          cp.email as crew_email,
-          sa.created_at as timestamp,
-          p.id as project_id,
-          cp.id as crew_id
-        FROM schedule_assignments sa
-        JOIN crew_profiles cp ON sa.crew_id = cp.id
-        JOIN projects p ON sa.project_id = p.id
-        WHERE sa.created_at IS NOT NULL
-      )
-      ORDER BY timestamp DESC
-      LIMIT $1
-    `,
-      [limit],
+    // Check if crew exists
+    const checkResult = await pool.query(
+      "SELECT id, full_name FROM crew_profiles WHERE id = $1",
+      [id],
     );
 
-    res.json({ activities: result.rows });
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Crew member not found" });
+    }
+
+    const crewName = checkResult.rows[0].full_name;
+
+    // Delete crew member (cascade will delete related records)
+    await pool.query("DELETE FROM crew_profiles WHERE id = $1", [id]);
+
+    res.json({
+      success: true,
+      message: `${crewName} deleted successfully`,
+    });
   } catch (error) {
-    console.error("Error fetching activities:", error);
-    res.status(500).json({ error: "Failed to fetch activities" });
+    console.error("Error deleting crew member:", error);
+    res.status(500).json({ error: "Failed to delete crew member" });
   }
 });
 
