@@ -1408,31 +1408,58 @@ app.listen(port, () => {
 // ============================================
 
 app.delete("/api/crew/:id", async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { id } = req.params;
 
+    // Start a transaction
+    await client.query("BEGIN");
+
     // Check if crew exists
-    const checkResult = await pool.query(
+    const checkResult = await client.query(
       "SELECT id, full_name FROM crew_profiles WHERE id = $1",
       [id],
     );
 
     if (checkResult.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Crew member not found" });
     }
 
     const crewName = checkResult.rows[0].full_name;
 
-    // Delete crew member (cascade will delete related records)
-    await pool.query("DELETE FROM crew_profiles WHERE id = $1", [id]);
+    // First, delete from schedule_assignments (foreign key to crew_profiles)
+    await client.query("DELETE FROM schedule_assignments WHERE crew_id = $1", [
+      id,
+    ]);
+    console.log(`Deleted schedule assignments for crew ${id}`);
+
+    // Second, delete from project_crew (foreign key to crew_profiles)
+    await client.query("DELETE FROM project_crew WHERE crew_id = $1", [id]);
+    console.log(`Deleted project crew links for crew ${id}`);
+
+    // Finally, delete the crew member
+    await client.query("DELETE FROM crew_profiles WHERE id = $1", [id]);
+    console.log(`Deleted crew profile ${id}`);
+
+    // Commit the transaction
+    await client.query("COMMIT");
 
     res.json({
       success: true,
       message: `${crewName} deleted successfully`,
     });
   } catch (error) {
+    // Rollback in case of error
+    await client.query("ROLLBACK");
     console.error("Error deleting crew member:", error);
-    res.status(500).json({ error: "Failed to delete crew member" });
+    res
+      .status(500)
+      .json({ error: "Failed to delete crew member: " + error.message });
+  } finally {
+    // Release the client back to the pool
+    client.release();
   }
 });
 
