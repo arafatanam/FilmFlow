@@ -1412,6 +1412,7 @@ app.delete("/api/crew/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
+    console.log(`Attempting to delete crew member with ID: ${id}`);
 
     // Start a transaction
     await client.query("BEGIN");
@@ -1428,19 +1429,37 @@ app.delete("/api/crew/:id", async (req, res) => {
     }
 
     const crewName = checkResult.rows[0].full_name;
+    console.log(`Found crew member: ${crewName}`);
 
-    // First, delete from schedule_assignments (foreign key to crew_profiles)
+    // 1. Delete from crew_availability (references project_crew)
+    await client.query(
+      `DELETE FROM crew_availability 
+       WHERE project_crew_id IN (
+         SELECT id FROM project_crew WHERE crew_id = $1
+       )`,
+      [id],
+    );
+    console.log(`Deleted crew availability for crew ${id}`);
+
+    // 2. Delete from schedule_assignments (references crew_profiles directly)
     await client.query("DELETE FROM schedule_assignments WHERE crew_id = $1", [
       id,
     ]);
     console.log(`Deleted schedule assignments for crew ${id}`);
 
-    // Second, delete from project_crew (foreign key to crew_profiles)
+    // 3. Delete from project_crew (references crew_profiles)
     await client.query("DELETE FROM project_crew WHERE crew_id = $1", [id]);
     console.log(`Deleted project crew links for crew ${id}`);
 
-    // Finally, delete the crew member
-    await client.query("DELETE FROM crew_profiles WHERE id = $1", [id]);
+    // 4. Finally, delete the crew member from crew_profiles
+    const deleteResult = await client.query(
+      "DELETE FROM crew_profiles WHERE id = $1 RETURNING id",
+      [id],
+    );
+
+    if (deleteResult.rows.length === 0) {
+      throw new Error("Failed to delete crew profile");
+    }
     console.log(`Deleted crew profile ${id}`);
 
     // Commit the transaction
@@ -1454,9 +1473,10 @@ app.delete("/api/crew/:id", async (req, res) => {
     // Rollback in case of error
     await client.query("ROLLBACK");
     console.error("Error deleting crew member:", error);
-    res
-      .status(500)
-      .json({ error: "Failed to delete crew member: " + error.message });
+    res.status(500).json({
+      error: "Failed to delete crew member",
+      details: error.message,
+    });
   } finally {
     // Release the client back to the pool
     client.release();
