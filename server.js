@@ -1447,6 +1447,28 @@ app.use((err, req, res, next) => {
 });
 
 // ============================================
+// CLEAR SCHEDULE FOR PROJECT (for save operation)
+// ============================================
+
+app.delete("/api/schedule/project/:projectId", async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    await pool.query("DELETE FROM schedule_assignments WHERE project_id = $1", [
+      projectId,
+    ]);
+
+    res.json({
+      success: true,
+      message: "Schedule cleared successfully",
+    });
+  } catch (error) {
+    console.error("Error clearing schedule:", error);
+    res.status(500).json({ error: "Failed to clear schedule" });
+  }
+});
+
+// ============================================
 // START SERVER
 // ============================================
 
