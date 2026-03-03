@@ -1444,7 +1444,7 @@ app.delete("/api/schedule/project/:projectId", async (req, res) => {
 });
 
 // ============================================
-// BULK UPDATE SCHEDULE FOR A DATE
+// BULK UPDATE SCHEDULE FOR A DATE (IMPROVED)
 // ============================================
 
 app.post("/api/schedule/bulk-update", async (req, res) => {
@@ -1453,16 +1453,37 @@ app.post("/api/schedule/bulk-update", async (req, res) => {
   try {
     const { project_id, date, assignments } = req.body;
 
+    console.log("Bulk update request:", {
+      project_id,
+      date,
+      assignmentCount: assignments?.length,
+    });
+
+    if (!project_id || !date || !Array.isArray(assignments)) {
+      return res.status(400).json({
+        error: "Invalid request",
+        received: { project_id, date, assignments: assignments?.length },
+      });
+    }
+
     await client.query("BEGIN");
 
     // Delete all existing assignments for this date
-    await client.query(
+    const deleteResult = await client.query(
       "DELETE FROM schedule_assignments WHERE project_id = $1 AND shoot_date = $2",
       [project_id, date],
     );
 
+    console.log(`Deleted ${deleteResult.rowCount} existing assignments`);
+
     // Insert new assignments
+    let insertedCount = 0;
     for (const assignment of assignments) {
+      if (!assignment.crew_id) {
+        console.warn("Skipping invalid assignment:", assignment);
+        continue;
+      }
+
       await client.query(
         `INSERT INTO schedule_assignments 
          (project_id, crew_id, shoot_date, call_time, department)
@@ -1472,21 +1493,27 @@ app.post("/api/schedule/bulk-update", async (req, res) => {
           assignment.crew_id,
           date,
           assignment.call_time || "06:00",
-          assignment.department,
+          assignment.department || null,
         ],
       );
+      insertedCount++;
     }
 
     await client.query("COMMIT");
 
+    console.log(`Successfully inserted ${insertedCount} assignments`);
     res.json({
       success: true,
-      message: `Updated ${assignments.length} assignments for ${date}`,
+      message: `Updated ${insertedCount} assignments for ${date}`,
+      count: insertedCount,
     });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error in bulk update:", error);
-    res.status(500).json({ error: "Failed to update schedule" });
+    res.status(500).json({
+      error: "Failed to update schedule",
+      details: error.message,
+    });
   } finally {
     client.release();
   }
