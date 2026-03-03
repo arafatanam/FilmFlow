@@ -1444,6 +1444,55 @@ app.delete("/api/schedule/project/:projectId", async (req, res) => {
 });
 
 // ============================================
+// BULK UPDATE SCHEDULE FOR A DATE
+// ============================================
+
+app.post("/api/schedule/bulk-update", async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { project_id, date, assignments } = req.body;
+
+    await client.query("BEGIN");
+
+    // Delete all existing assignments for this date
+    await client.query(
+      "DELETE FROM schedule_assignments WHERE project_id = $1 AND shoot_date = $2",
+      [project_id, date],
+    );
+
+    // Insert new assignments
+    for (const assignment of assignments) {
+      await client.query(
+        `INSERT INTO schedule_assignments 
+         (project_id, crew_id, shoot_date, call_time, department)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          project_id,
+          assignment.crew_id,
+          date,
+          assignment.call_time || "06:00",
+          assignment.department,
+        ],
+      );
+    }
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      message: `Updated ${assignments.length} assignments for ${date}`,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error in bulk update:", error);
+    res.status(500).json({ error: "Failed to update schedule" });
+  } finally {
+    client.release();
+  }
+});
+
+// ============================================
 // START SERVER
 // ============================================
 
