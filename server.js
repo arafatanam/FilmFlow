@@ -1406,45 +1406,7 @@ app.delete("/api/projects/:id", async (req, res) => {
 });
 
 // ============================================
-// ERROR HANDLING
-// ============================================
-
-app.use((req, res) => {
-  res.status(404).json({ error: "Endpoint not found" });
-});
-
-app.use((err, req, res, next) => {
-  console.error("Server error:", err);
-  res.status(500).json({
-    error: "Internal server error",
-    message: process.env.NODE_ENV === "development" ? err.message : undefined,
-  });
-});
-
-// ============================================
-// CLEAR SCHEDULE FOR PROJECT (for save operation)
-// ============================================
-
-app.delete("/api/schedule/project/:projectId", async (req, res) => {
-  try {
-    const { projectId } = req.params;
-
-    await pool.query("DELETE FROM schedule_assignments WHERE project_id = $1", [
-      projectId,
-    ]);
-
-    res.json({
-      success: true,
-      message: "Schedule cleared successfully",
-    });
-  } catch (error) {
-    console.error("Error clearing schedule:", error);
-    res.status(500).json({ error: "Failed to clear schedule" });
-  }
-});
-
-// ============================================
-// BULK UPDATE SCHEDULE FOR A DATE (IMPROVED)
+// BULK UPDATE SCHEDULE FOR A DATE
 // ============================================
 
 app.post("/api/schedule/bulk-update", async (req, res) => {
@@ -1517,6 +1479,44 @@ app.post("/api/schedule/bulk-update", async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// ============================================
+// CLEAR SCHEDULE FOR PROJECT
+// ============================================
+
+app.delete("/api/schedule/project/:projectId", async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    await pool.query("DELETE FROM schedule_assignments WHERE project_id = $1", [
+      projectId,
+    ]);
+
+    res.json({
+      success: true,
+      message: "Schedule cleared successfully",
+    });
+  } catch (error) {
+    console.error("Error clearing schedule:", error);
+    res.status(500).json({ error: "Failed to clear schedule" });
+  }
+});
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+app.use((req, res) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
+
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+  res.status(500).json({
+    error: "Internal server error",
+    message: process.env.NODE_ENV === "development" ? err.message : undefined,
+  });
 });
 
 // ============================================
