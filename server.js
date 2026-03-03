@@ -829,53 +829,78 @@ app.get("/api/admin/project/:id/pending", async (req, res) => {
 });
 
 // ============================================
-// SCHEDULING ENDPOINTS (Simplified - No Conflicts)
+// SCHEDULING ENDPOINTS (with conflict detection)
 // ============================================
 
-// Assign crew to date (simplified - no conflict checks)
+// Assign crew to date (with conflict check)
 app.post("/api/schedule/assign", async (req, res) => {
   try {
-    const { project_id, crew_id, shoot_date, call_time, department } = req.body;
-
-    console.log("Schedule assign request:", {
+    const {
       project_id,
       crew_id,
       shoot_date,
+      call_time,
       department,
-    });
+      override = false,
+    } = req.body;
 
-    // Validate required fields
-    if (!project_id || !crew_id || !shoot_date) {
-      return res.status(400).json({
-        error: "Missing required fields",
-        received: req.body,
+    // Check for conflicts
+    const conflicts = await checkConflicts(project_id, crew_id, shoot_date);
+
+    // If there are conflicts and not overriding, return warning
+    if (
+      (conflicts.double_booked ||
+        conflicts.personal_unavailable ||
+        conflicts.missing_info) &&
+      !override
+    ) {
+      return res.status(409).json({
+        warning: true,
+        conflicts,
+        message: "Conflict detected. Send override=true to force assign.",
       });
     }
 
-    // Insert or update schedule assignment (no conflict warnings)
+    // Assign crew
     const result = await pool.query(
       `INSERT INTO schedule_assignments 
-       (project_id, crew_id, shoot_date, call_time, department)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (project_id, crew_id, shoot_date) 
-       DO UPDATE SET 
-         call_time = EXCLUDED.call_time,
-         department = EXCLUDED.department
-       RETURNING *`,
-      [project_id, crew_id, shoot_date, call_time || "06:00", department],
+             (project_id, crew_id, shoot_date, call_time, department,
+              conflict_warning, conflict_type, conflict_resolved)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (project_id, crew_id, shoot_date) 
+             DO UPDATE SET 
+                call_time = EXCLUDED.call_time,
+                department = EXCLUDED.department,
+                conflict_warning = EXCLUDED.conflict_warning,
+                conflict_resolved = EXCLUDED.conflict_resolved
+             RETURNING *`,
+      [
+        project_id,
+        crew_id,
+        shoot_date,
+        call_time,
+        department,
+        conflicts.double_booked || conflicts.personal_unavailable,
+        conflicts.double_booked
+          ? "double_booked"
+          : conflicts.personal_unavailable
+            ? "unavailable"
+            : null,
+        override,
+      ],
     );
 
-    console.log("Schedule assign success:", result.rows[0]);
     res.json({
       success: true,
       assignment: result.rows[0],
+      warning:
+        conflicts.double_booked || conflicts.personal_unavailable
+          ? "Assigned with conflicts"
+          : null,
     });
   } catch (error) {
     console.error("Schedule assignment error:", error);
-    res.status(500).json({
-      error: "Failed to assign crew",
-      details: error.message,
-    });
+    res.status(500).json({ error: "Failed to assign crew" });
   }
 });
 
@@ -1402,104 +1427,6 @@ app.delete("/api/projects/:id", async (req, res) => {
   } catch (error) {
     console.error("Delete project error:", error);
     res.status(500).json({ error: "Failed to delete project" });
-  }
-});
-
-// ============================================
-// BULK UPDATE SCHEDULE FOR A DATE
-// ============================================
-
-app.post("/api/schedule/bulk-update", async (req, res) => {
-  const client = await pool.connect();
-
-  try {
-    const { project_id, date, assignments } = req.body;
-
-    console.log("Bulk update request:", {
-      project_id,
-      date,
-      assignmentCount: assignments?.length,
-    });
-
-    if (!project_id || !date || !Array.isArray(assignments)) {
-      return res.status(400).json({
-        error: "Invalid request",
-        received: { project_id, date, assignments: assignments?.length },
-      });
-    }
-
-    await client.query("BEGIN");
-
-    // Delete all existing assignments for this date
-    const deleteResult = await client.query(
-      "DELETE FROM schedule_assignments WHERE project_id = $1 AND shoot_date = $2",
-      [project_id, date],
-    );
-
-    console.log(`Deleted ${deleteResult.rowCount} existing assignments`);
-
-    // Insert new assignments
-    let insertedCount = 0;
-    for (const assignment of assignments) {
-      if (!assignment.crew_id) {
-        console.warn("Skipping invalid assignment:", assignment);
-        continue;
-      }
-
-      await client.query(
-        `INSERT INTO schedule_assignments 
-         (project_id, crew_id, shoot_date, call_time, department)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          project_id,
-          assignment.crew_id,
-          date,
-          assignment.call_time || "06:00",
-          assignment.department || null,
-        ],
-      );
-      insertedCount++;
-    }
-
-    await client.query("COMMIT");
-
-    console.log(`Successfully inserted ${insertedCount} assignments`);
-    res.json({
-      success: true,
-      message: `Updated ${insertedCount} assignments for ${date}`,
-      count: insertedCount,
-    });
-  } catch (error) {
-    await client.query("ROLLBACK");
-    console.error("Error in bulk update:", error);
-    res.status(500).json({
-      error: "Failed to update schedule",
-      details: error.message,
-    });
-  } finally {
-    client.release();
-  }
-});
-
-// ============================================
-// CLEAR SCHEDULE FOR PROJECT
-// ============================================
-
-app.delete("/api/schedule/project/:projectId", async (req, res) => {
-  try {
-    const { projectId } = req.params;
-
-    await pool.query("DELETE FROM schedule_assignments WHERE project_id = $1", [
-      projectId,
-    ]);
-
-    res.json({
-      success: true,
-      message: "Schedule cleared successfully",
-    });
-  } catch (error) {
-    console.error("Error clearing schedule:", error);
-    res.status(500).json({ error: "Failed to clear schedule" });
   }
 });
 
