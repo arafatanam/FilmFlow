@@ -829,20 +829,13 @@ app.get("/api/admin/project/:id/pending", async (req, res) => {
 });
 
 // ============================================
-// SCHEDULING ENDPOINTS (with conflict detection)
+// SCHEDULING ENDPOINTS (Simplified - No Conflicts)
 // ============================================
 
-// Assign crew to date (with conflict check) - FIXED VERSION
+// Assign crew to date (simplified - no conflict checks)
 app.post("/api/schedule/assign", async (req, res) => {
   try {
-    const {
-      project_id,
-      crew_id,
-      shoot_date,
-      call_time,
-      department,
-      override = false,
-    } = req.body;
+    const { project_id, crew_id, shoot_date, call_time, department } = req.body;
 
     console.log("Schedule assign request:", {
       project_id,
@@ -859,46 +852,17 @@ app.post("/api/schedule/assign", async (req, res) => {
       });
     }
 
-    // Check for conflicts (optional - can be skipped for now)
-    let conflicts = {
-      double_booked: false,
-      personal_unavailable: false,
-      missing_info: false,
-    };
-    try {
-      conflicts = await checkConflicts(project_id, crew_id, shoot_date);
-    } catch (conflictError) {
-      console.log(
-        "Conflict check failed, proceeding without:",
-        conflictError.message,
-      );
-    }
-
-    // Insert or update schedule assignment
+    // Insert or update schedule assignment (no conflict warnings)
     const result = await pool.query(
       `INSERT INTO schedule_assignments 
-       (project_id, crew_id, shoot_date, call_time, department, conflict_warning, conflict_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (project_id, crew_id, shoot_date, call_time, department)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (project_id, crew_id, shoot_date) 
        DO UPDATE SET 
          call_time = EXCLUDED.call_time,
-         department = EXCLUDED.department,
-         conflict_warning = EXCLUDED.conflict_warning,
-         conflict_type = EXCLUDED.conflict_type
+         department = EXCLUDED.department
        RETURNING *`,
-      [
-        project_id,
-        crew_id,
-        shoot_date,
-        call_time || "06:00",
-        department,
-        conflicts.double_booked || conflicts.personal_unavailable,
-        conflicts.double_booked
-          ? "double_booked"
-          : conflicts.personal_unavailable
-            ? "unavailable"
-            : null,
-      ],
+      [project_id, crew_id, shoot_date, call_time || "06:00", department],
     );
 
     console.log("Schedule assign success:", result.rows[0]);
@@ -911,7 +875,6 @@ app.post("/api/schedule/assign", async (req, res) => {
     res.status(500).json({
       error: "Failed to assign crew",
       details: error.message,
-      stack: error.stack,
     });
   }
 });
